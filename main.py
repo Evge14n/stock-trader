@@ -215,11 +215,82 @@ async def show_status():
     console.print(f"\n  Total trades: {stats['total_trades']} | Win rate: {stats['win_rate']:.1%} | Total P/L: ${stats['total_pl']:+.2f}")
 
 
+async def run_backtest_cmd(period: str, symbols: list[str] | None = None):
+    from agents.python.backtest import run_backtest
+
+    syms = symbols or settings.symbols
+    console.print(f"\n[bold]Backtest[/] on {len(syms)} symbols, period={period}")
+    console.print(f"Symbols: {', '.join(syms)}")
+    console.print("[dim]Running historical simulation...[/]\n")
+
+    result = await asyncio.to_thread(run_backtest, syms, 100_000.0, period)
+    summary = result.summary()
+
+    table = Table(title="Backtest Results", box=box.ROUNDED)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+
+    for k, v in summary.items():
+        if isinstance(v, float):
+            if "pct" in k or "rate" in k or "drawdown" in k:
+                val = f"{v:+.2f}%"
+            elif "capital" in k or "pnl" in k:
+                val = f"${v:,.2f}"
+            else:
+                val = f"{v:.2f}"
+        else:
+            val = str(v)
+
+        color = ""
+        if k == "total_pnl" and v > 0:
+            color = "[green]"
+        elif k == "total_pnl" and v < 0:
+            color = "[red]"
+
+        table.add_row(k.replace("_", " ").title(), f"{color}{val}{'[/]' if color else ''}")
+
+    console.print(table)
+
+    if result.trades:
+        recent = result.trades[-10:]
+        trade_table = Table(title=f"Last {len(recent)} trades", box=box.SIMPLE)
+        trade_table.add_column("Symbol")
+        trade_table.add_column("Entry", justify="right")
+        trade_table.add_column("Exit", justify="right")
+        trade_table.add_column("P/L", justify="right")
+        trade_table.add_column("Reason")
+
+        for t in recent:
+            color = "green" if t["pnl"] > 0 else "red"
+            trade_table.add_row(
+                t["symbol"],
+                f"${t['entry']:.2f}",
+                f"${t['exit']:.2f}",
+                f"[{color}]${t['pnl']:+,.2f}[/]",
+                t["reason"],
+            )
+        console.print(trade_table)
+
+
+def run_dashboard():
+    import uvicorn
+    console.print("[bold cyan]Dashboard[/] running at [underline]http://localhost:8000[/]")
+    console.print("[dim]Press Ctrl+C to stop[/]\n")
+    uvicorn.run(
+        "dashboard.server:app",
+        host="0.0.0.0",
+        port=8000,
+        log_level="warning",
+    )
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Stock Trader — Multi-Agent AI System")
-    parser.add_argument("command", choices=["run", "loop", "status", "check"], help="Command to execute")
+    parser.add_argument("command", choices=["run", "loop", "status", "check", "backtest", "dashboard", "reset"],
+                        help="Command to execute")
     parser.add_argument("--interval", type=int, default=settings.cycle_interval_sec, help="Loop interval in seconds")
     parser.add_argument("--dry-run", action="store_true", help="Analyze without executing trades")
+    parser.add_argument("--period", default="6mo", help="Backtest period (1mo, 3mo, 6mo, 1y, 2y)")
     args = parser.parse_args()
 
     print_banner()
@@ -229,6 +300,17 @@ async def main():
 
     elif args.command == "status":
         await show_status()
+
+    elif args.command == "backtest":
+        await run_backtest_cmd(args.period)
+
+    elif args.command == "dashboard":
+        run_dashboard()
+
+    elif args.command == "reset":
+        from agents.python import paper_broker
+        paper_broker.reset_account()
+        console.print("[green]Account reset to $100,000[/]")
 
     elif args.command == "run":
         ok = await check_dependencies(dry_run=args.dry_run)
@@ -245,5 +327,13 @@ async def main():
         await run_loop(args.interval, args.dry_run)
 
 
-if __name__ == "__main__":
+def cli():
+    if len(sys.argv) > 1 and sys.argv[1] == "dashboard":
+        print_banner()
+        run_dashboard()
+        return
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli()

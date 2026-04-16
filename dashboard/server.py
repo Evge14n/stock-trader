@@ -1,0 +1,262 @@
+from __future__ import annotations
+import asyncio
+import sys
+from contextlib import asynccontextmanager
+from pathlib import Path
+from datetime import datetime
+import orjson
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from config.settings import settings
+from agents.python import paper_broker, portfolio_tracker
+from agents.python.data_collector import fetch_quote
+
+
+class PipelineRunner:
+    def __init__(self):
+        self.running = False
+        self.last_result: dict | None = None
+        self.activity_log: list[dict] = []
+        self.auto_mode = False
+        self.interval_sec = 3600
+
+    def log(self, event: str, data: dict | None = None):
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "event": event,
+            "data": data or {},
+        }
+        self.activity_log.insert(0, entry)
+        self.activity_log = self.activity_log[:100]
+
+    async def run_once(self, dry_run: bool = False):
+        if self.running:
+            return {"error": "already running"}
+
+        self.running = True
+        self.log("cycle_started", {"dry_run": dry_run})
+
+        try:
+            from core.orchestrator import build_graph
+            import uuid
+
+            cycle_id = str(uuid.uuid4())[:8]
+            initial_state = {
+                "cycle_id": cycle_id,
+                "symbols": settings.symbols,
+                "market_data": {},
+                "indicators": {},
+                "news": {},
+                "analyses": {},
+                "signals": [],
+                "risk_checks": [],
+                "approved_trades": [],
+                "execution_results": [],
+                "errors": [],
+                "dry_run": dry_run,
+                "started_at": datetime.now().isoformat(),
+                "completed_at": "",
+            }
+
+            graph = build_graph()
+            app = graph.compile()
+
+            final_state = None
+            async for event in app.astream(initial_state):
+                for node_name, node_state in event.items():
+                    self.log(f"node_completed", {"node": node_name})
+                    final_state = node_state
+
+            self.last_result = final_state
+            self.log("cycle_completed", {
+                "cycle_id": cycle_id,
+                "signals": len(final_state.get("signals", [])),
+                "executed": len(final_state.get("execution_results", [])),
+            })
+            return final_state
+        except Exception as e:
+            self.log("cycle_error", {"error": str(e)})
+            return {"error": str(e)}
+        finally:
+            self.running = False
+
+    async def auto_loop(self):
+        while self.auto_mode:
+            await self.run_once(dry_run=False)
+            await asyncio.sleep(self.interval_sec)
+
+
+runner = PipelineRunner()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    yield
+
+
+app = FastAPI(title="Stock Trader Dashboard", lifespan=lifespan)
+
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    html_path = Path(__file__).parent / "static" / "index.html"
+    return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+
+@app.get("/api/portfolio")
+async def portfolio():
+    positions = paper_broker.list_positions()
+    symbols = [p["symbol"] for p in positions]
+    prices = {}
+
+    for sym in symbols:
+        try:
+            q = await asyncio.to_thread(fetch_quote, sym)
+            prices[sym] = q["price"]
+        except Exception:
+            pass
+
+    positions_live = paper_broker.list_positions(prices)
+    account = paper_broker.get_account()
+    positions_value = sum(p["qty"] * p["current_price"] for p in positions_live)
+    equity = account["cash"] + positions_value
+
+    total_pl = equity - account["initial_deposit"]
+    total_pl_pct = total_pl / account["initial_deposit"] if account["initial_deposit"] else 0.0
+
+    return {
+        "cash": account["cash"],
+        "initial_deposit": account["initial_deposit"],
+        "equity": equity,
+        "positions_value": positions_value,
+        "total_pl": round(total_pl, 2),
+        "total_pl_pct": round(total_pl_pct * 100, 3),
+        "unrealized_pl": round(sum(p["unrealized_pl"] for p in positions_live), 2),
+        "position_count": len(positions_live),
+        "positions": positions_live,
+    }
+
+
+@app.get("/api/equity_history")
+async def equity_history(limit: int = 500):
+    return paper_broker.get_equity_history(limit)
+
+
+@app.get("/api/stats")
+async def stats():
+    return paper_broker.get_trade_stats()
+
+
+@app.get("/api/trades")
+async def trades(limit: int = 50):
+    import sqlite3
+    with sqlite3.connect(paper_broker._db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM trades ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/orders")
+async def orders(limit: int = 50):
+    import sqlite3
+    with sqlite3.connect(paper_broker._db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM orders ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.get("/api/activity")
+async def activity():
+    return runner.activity_log
+
+
+@app.get("/api/status")
+async def status():
+    return {
+        "running": runner.running,
+        "auto_mode": runner.auto_mode,
+        "interval_sec": runner.interval_sec,
+        "watchlist": settings.symbols,
+        "model": settings.ollama_model,
+    }
+
+
+@app.post("/api/run")
+async def run(dry_run: bool = False):
+    if runner.running:
+        return JSONResponse({"error": "already running"}, status_code=409)
+    asyncio.create_task(runner.run_once(dry_run=dry_run))
+    return {"started": True}
+
+
+@app.post("/api/auto/start")
+async def auto_start(interval: int = 3600):
+    if runner.auto_mode:
+        return {"status": "already_running"}
+    runner.auto_mode = True
+    runner.interval_sec = interval
+    asyncio.create_task(runner.auto_loop())
+    return {"status": "started", "interval": interval}
+
+
+@app.post("/api/auto/stop")
+async def auto_stop():
+    runner.auto_mode = False
+    return {"status": "stopped"}
+
+
+@app.post("/api/reset")
+async def reset():
+    paper_broker.reset_account()
+    runner.log("account_reset", {})
+    return {"status": "reset"}
+
+
+@app.get("/api/analyses")
+async def latest_analyses():
+    if not runner.last_result:
+        return {"analyses": {}, "signals": [], "executed": []}
+    return {
+        "analyses": runner.last_result.get("analyses", {}),
+        "signals": runner.last_result.get("signals", []),
+        "executed": runner.last_result.get("execution_results", []),
+        "cycle_id": runner.last_result.get("cycle_id", ""),
+        "completed_at": runner.last_result.get("completed_at", ""),
+    }
+
+
+@app.get("/api/market")
+async def market_snapshot():
+    quotes = {}
+    for sym in settings.symbols:
+        try:
+            q = await asyncio.to_thread(fetch_quote, sym)
+            change = ((q["price"] - q["prev_close"]) / q["prev_close"] * 100) if q["prev_close"] else 0.0
+            quotes[sym] = {
+                "price": q["price"],
+                "prev_close": q["prev_close"],
+                "change_pct": round(change, 2),
+            }
+        except Exception as e:
+            quotes[sym] = {"error": str(e)}
+    return quotes
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

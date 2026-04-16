@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Trader Dashboard</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">ST</div>
+      <div>
+        <div class="brand-title">Stock Trader</div>
+        <div class="brand-sub">Multi-agent AI</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <button class="nav-btn active" data-view="overview">Огляд</button>
+      <button class="nav-btn" data-view="positions">Позиції</button>
+      <button class="nav-btn" data-view="trades">Угоди</button>
+      <button class="nav-btn" data-view="analyses">Аналіз агентів</button>
+      <button class="nav-btn" data-view="market">Ринок</button>
+      <button class="nav-btn" data-view="activity">Активність</button>
+    </nav>
+
+    <div class="controls">
+      <button id="btn-run" class="primary">▶ Запустити цикл</button>
+      <button id="btn-run-dry" class="secondary">Dry-run</button>
+      <div class="auto-controls">
+        <button id="btn-auto" class="tertiary">Авто-режим</button>
+        <select id="interval-select">
+          <option value="300">5 хв</option>
+          <option value="900">15 хв</option>
+          <option value="1800">30 хв</option>
+          <option value="3600" selected>1 год</option>
+          <option value="14400">4 год</option>
+        </select>
+      </div>
+      <button id="btn-reset" class="danger">Скинути рахунок</button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="status-item">
+        <span class="dot" id="model-dot"></span>
+        <span id="model-name">gemma4:e2b</span>
+      </div>
+      <div class="status-item">
+        <span class="dot" id="pipeline-dot"></span>
+        <span id="pipeline-status">очікує</span>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top-bar">
+      <div class="equity-panel">
+        <div class="equity-label">Загальний капітал</div>
+        <div class="equity-value" id="equity">$100,000.00</div>
+        <div class="equity-change" id="equity-change">+$0.00 (0.00%)</div>
+      </div>
+      <div class="top-stats">
+        <div class="stat">
+          <div class="stat-label">Кеш</div>
+          <div class="stat-value" id="cash">$100,000</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">У позиціях</div>
+          <div class="stat-value" id="positions-value">$0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Відкриті</div>
+          <div class="stat-value" id="position-count">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">Unrealized P/L</div>
+          <div class="stat-value" id="unrealized-pl">$0.00</div>
+        </div>
+      </div>
+    </header>
+
+    <section class="view" id="view-overview">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>Крива капіталу</h3>
+            <span class="muted" id="equity-points-count">0 точок</span>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="equity-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Статистика угод</h3>
+          </div>
+          <div class="stats-grid">
+            <div class="mini-stat">
+              <div class="mini-label">Всього угод</div>
+              <div class="mini-value" id="total-trades">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Win rate</div>
+              <div class="mini-value" id="win-rate">0%</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Прибуткові</div>
+              <div class="mini-value pos" id="wins">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Збиткові</div>
+              <div class="mini-value neg" id="losses">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Середній +</div>
+              <div class="mini-value pos" id="avg-win">$0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Середній −</div>
+              <div class="mini-value neg" id="avg-loss">$0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Поточні позиції</h3>
+        </div>
+        <div id="positions-overview" class="positions-grid"></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-positions">
+      <div class="card">
+        <div class="card-header">
+          <h3>Відкриті позиції</h3>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Символ</th><th>Кількість</th><th>Вхід</th><th>Поточна</th>
+              <th>Stop Loss</th><th>Take Profit</th><th>P/L $</th><th>P/L %</th>
+            </tr>
+          </thead>
+          <tbody id="positions-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-trades">
+      <div class="card">
+        <div class="card-header">
+          <h3>Історія угод</h3>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th><th>Символ</th><th>Кількість</th><th>Вхід</th>
+              <th>Вихід</th><th>P/L $</th><th>P/L %</th><th>Відкрито</th><th>Закрито</th>
+            </tr>
+          </thead>
+          <tbody id="trades-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-analyses">
+      <div class="card">
+        <div class="card-header">
+          <h3>Останній цикл аналізу</h3>
+          <span class="muted" id="cycle-info">немає даних</span>
+        </div>
+        <div id="analyses-container"></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-market">
+      <div class="card">
+        <div class="card-header">
+          <h3>Ринок зараз</h3>
+          <button class="mini-btn" id="btn-refresh-market">Оновити</button>
+        </div>
+        <div id="market-grid" class="market-grid"></div>
+      </div>
+    </section>
+
+    <section class="view hidden" id="view-activity">
+      <div class="card">
+        <div class="card-header">
+          <h3>Журнал активності</h3>
+        </div>
+        <div id="activity-log" class="activity-log"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

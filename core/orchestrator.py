@@ -14,6 +14,9 @@ from agents.llm.news_analyst import analyze as news_analyze
 from agents.llm.researcher import synthesize
 from agents.llm.trader import decide
 from agents.llm.sector_analyst import analyze as sector_analyze
+from agents.llm.fundamental_analyst import analyze as fundamental_analyze
+from agents.llm.momentum_analyst import analyze as momentum_analyze
+from agents.llm.volatility_analyst import analyze as volatility_analyze
 from agents.python.risk_validator import validate
 from agents.python.order_manager import execute_trades
 from agents.python.watchlist_scanner import filter_watchlist
@@ -53,6 +56,24 @@ async def node_news_analysis(state: dict[str, Any]) -> dict[str, Any]:
 async def node_sector_analysis(state: dict[str, Any]) -> dict[str, Any]:
     ps = _dict_to_state(state)
     ps = await sector_analyze(ps)
+    return _state_to_dict(ps)
+
+
+async def node_fundamental_analysis(state: dict[str, Any]) -> dict[str, Any]:
+    ps = _dict_to_state(state)
+    ps = await fundamental_analyze(ps)
+    return _state_to_dict(ps)
+
+
+async def node_momentum_analysis(state: dict[str, Any]) -> dict[str, Any]:
+    ps = _dict_to_state(state)
+    ps = await momentum_analyze(ps)
+    return _state_to_dict(ps)
+
+
+async def node_volatility_analysis(state: dict[str, Any]) -> dict[str, Any]:
+    ps = _dict_to_state(state)
+    ps = await volatility_analyze(ps)
     return _state_to_dict(ps)
 
 
@@ -124,6 +145,9 @@ def build_graph() -> StateGraph:
     graph.add_node("technical_analysis", node_technical_analysis)
     graph.add_node("news_analysis", node_news_analysis)
     graph.add_node("sector_analysis", node_sector_analysis)
+    graph.add_node("fundamental_analysis", node_fundamental_analysis)
+    graph.add_node("momentum_analysis", node_momentum_analysis)
+    graph.add_node("volatility_analysis", node_volatility_analysis)
     graph.add_node("research", node_research)
     graph.add_node("trade_decision", node_trade_decision)
     graph.add_node("risk_check", node_risk_check)
@@ -136,7 +160,10 @@ def build_graph() -> StateGraph:
     graph.add_edge("filter_watchlist", "technical_analysis")
     graph.add_edge("technical_analysis", "news_analysis")
     graph.add_edge("news_analysis", "sector_analysis")
-    graph.add_edge("sector_analysis", "research")
+    graph.add_edge("sector_analysis", "fundamental_analysis")
+    graph.add_edge("fundamental_analysis", "momentum_analysis")
+    graph.add_edge("momentum_analysis", "volatility_analysis")
+    graph.add_edge("volatility_analysis", "research")
     graph.add_edge("research", "trade_decision")
 
     graph.add_conditional_edges("trade_decision", should_continue, {
