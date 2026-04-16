@@ -1,0 +1,30 @@
+# Core
+langgraph>=0.4
+langchain-ollama>=0.3
+langchain-core>=0.3
+
+# Trading
+alpaca-py>=0.35
+
+# Data
+finnhub-python>=2.5
+pandas>=2.2
+numpy>=2.0
+ta>=0.11.0
+
+# Config
+pydantic>=2.10
+pydantic-settings>=2.7
+python-dotenv>=1.0
+
+# HTTP
+httpx>=0.28
+aiohttp>=3.11
+
+# Logging
+structlog>=25.0
+rich>=13.0
+
+# Utils
+orjson>=3.10
+cachetools>=5.5
