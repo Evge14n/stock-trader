@@ -242,18 +242,25 @@ async def latest_analyses():
 
 @app.get("/api/market")
 async def market_snapshot():
-    quotes = {}
-    for sym in settings.symbols:
+    import yfinance as yf
+
+    def _yf_quote(sym):
         try:
-            q = await asyncio.to_thread(fetch_quote, sym)
-            change = ((q["price"] - q["prev_close"]) / q["prev_close"] * 100) if q["prev_close"] else 0.0
-            quotes[sym] = {
-                "price": q["price"],
-                "prev_close": q["prev_close"],
-                "change_pct": round(change, 2),
-            }
+            t = yf.Ticker(sym)
+            hist = t.history(period="5d", interval="1d")
+            if hist.empty:
+                return {"error": "no data"}
+            price = float(hist["Close"].iloc[-1])
+            prev = float(hist["Close"].iloc[-2]) if len(hist) > 1 else price
+            change = ((price - prev) / prev * 100) if prev else 0.0
+            return {"price": round(price, 2), "prev_close": round(prev, 2), "change_pct": round(change, 2)}
         except Exception as e:
-            quotes[sym] = {"error": str(e)}
+            return {"error": str(e)[:60]}
+
+    quotes = {}
+    results = await asyncio.gather(*[asyncio.to_thread(_yf_quote, sym) for sym in settings.symbols])
+    for sym, q in zip(settings.symbols, results):
+        quotes[sym] = q
     return quotes
 
 
