@@ -242,12 +242,34 @@ def _to_trade_signal(symbol: str, vote: StrategyVote, state: PipelineState) -> T
         tp_pct = 0.06
 
     size_mult = vote.size_multiplier()
-    risk_amount = settings.max_position_size * settings.risk_per_trade * size_mult
+
+    corr_factor = 1.0
+    corr_info = ""
+    if settings.correlation_cap:
+        try:
+            from agents.python import paper_broker
+            from agents.python.correlation_sizing import size_factor
+
+            held = [p["symbol"] for p in paper_broker.list_positions() if p.get("symbol") != symbol]
+            if held:
+                corr_factor, max_corr = size_factor(
+                    symbol,
+                    held,
+                    threshold=settings.correlation_threshold,
+                    max_cut=settings.correlation_min_factor,
+                )
+                if corr_factor < 1.0:
+                    corr_info = f" corr×{corr_factor:.2f}(max={max_corr:.2f})"
+        except Exception as e:
+            log.warning("correlation_sizing_error", symbol=symbol, error=str(e))
+
+    final_mult = size_mult * corr_factor
+    risk_amount = settings.max_position_size * settings.risk_per_trade * final_mult
     risk_per_share = md.price * stop_pct
     if risk_per_share <= 0:
         return None
     qty = int(risk_amount / risk_per_share)
-    max_shares = int(settings.max_position_size * size_mult / md.price)
+    max_shares = int(settings.max_position_size * final_mult / md.price)
     qty = min(qty, max_shares)
     if qty <= 0:
         return None
@@ -267,7 +289,7 @@ def _to_trade_signal(symbol: str, vote: StrategyVote, state: PipelineState) -> T
         stop_loss=sl,
         take_profit=tp,
         confidence=vote.confidence,
-        reasoning=f"[{vote.source}] size×{size_mult:.2f} {vote.reasoning[:230]}",
+        reasoning=f"[{vote.source}] size×{size_mult:.2f}{corr_info} {vote.reasoning[:210]}",
     )
 
 

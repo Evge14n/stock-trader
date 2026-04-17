@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     smart_min_voters: int = 2
     max_consecutive_losses: int = 3
     loss_cooldown_hours: int = 24
+    correlation_cap: bool = True
+    correlation_threshold: float = 0.7
+    correlation_min_factor: float = 0.5
 
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 
