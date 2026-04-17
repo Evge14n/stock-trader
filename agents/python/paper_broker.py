@@ -211,6 +211,22 @@ def submit_order(
     }
 
 
+def update_trailing_stops(prices: dict[str, float], trail_pct: float = 0.03) -> int:
+    updated = 0
+    with _conn() as c:
+        rows = c.execute("SELECT * FROM positions").fetchall()
+        for pos in rows:
+            price = prices.get(pos["symbol"])
+            if not price or pos["qty"] <= 0:
+                continue
+            new_stop = round(price * (1 - trail_pct), 2)
+            if pos["stop_loss"] and new_stop > pos["stop_loss"] and price > pos["avg_entry"]:
+                c.execute("UPDATE positions SET stop_loss = ? WHERE symbol = ?", (new_stop, pos["symbol"]))
+                updated += 1
+        c.commit()
+    return updated
+
+
 def check_stop_targets(prices: dict[str, float]) -> list[dict]:
     closed = []
     with _conn() as c:

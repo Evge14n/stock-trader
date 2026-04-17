@@ -23,6 +23,18 @@ from agents.python.watchlist_scanner import filter_watchlist
 from core.state import PipelineState
 
 
+def _wrap(fn, name: str):
+    async def wrapped(state: dict[str, Any]) -> dict[str, Any]:
+        ps = _dict_to_state(state)
+        try:
+            ps = await fn(ps)
+        except Exception as e:
+            ps.add_error(f"{name}: {type(e).__name__}: {e}")
+        return _state_to_dict(ps)
+
+    return wrapped
+
+
 async def node_collect_data(state: dict[str, Any]) -> dict[str, Any]:
     ps = _dict_to_state(state)
     ps = await collect_all(ps)
@@ -140,19 +152,19 @@ def should_continue(state: dict[str, Any]) -> str:
 def build_graph() -> StateGraph:
     graph = StateGraph(dict)
 
-    graph.add_node("collect_data", node_collect_data)
-    graph.add_node("collect_news", node_collect_news)
-    graph.add_node("compute_indicators", node_compute_indicators)
-    graph.add_node("filter_watchlist", node_filter_watchlist)
-    graph.add_node("technical_analysis", node_technical_analysis)
-    graph.add_node("news_analysis", node_news_analysis)
-    graph.add_node("sector_analysis", node_sector_analysis)
-    graph.add_node("fundamental_analysis", node_fundamental_analysis)
-    graph.add_node("momentum_analysis", node_momentum_analysis)
-    graph.add_node("volatility_analysis", node_volatility_analysis)
-    graph.add_node("research", node_research)
-    graph.add_node("trade_decision", node_trade_decision)
-    graph.add_node("risk_check", node_risk_check)
+    graph.add_node("collect_data", _wrap(collect_all, "collect_data"))
+    graph.add_node("collect_news", _wrap(collect_news, "collect_news"))
+    graph.add_node("compute_indicators", _wrap(compute_all, "compute_indicators"))
+    graph.add_node("filter_watchlist", _wrap(filter_watchlist, "filter_watchlist"))
+    graph.add_node("technical_analysis", _wrap(technical_analyze, "technical_analysis"))
+    graph.add_node("news_analysis", _wrap(news_analyze, "news_analysis"))
+    graph.add_node("sector_analysis", _wrap(sector_analyze, "sector_analysis"))
+    graph.add_node("fundamental_analysis", _wrap(fundamental_analyze, "fundamental_analysis"))
+    graph.add_node("momentum_analysis", _wrap(momentum_analyze, "momentum_analysis"))
+    graph.add_node("volatility_analysis", _wrap(volatility_analyze, "volatility_analysis"))
+    graph.add_node("research", _wrap(synthesize, "research"))
+    graph.add_node("trade_decision", _wrap(decide, "trade_decision"))
+    graph.add_node("risk_check", _wrap(validate, "risk_check"))
     graph.add_node("execute", node_execute)
 
     graph.set_entry_point("collect_data")

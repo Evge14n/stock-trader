@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     cycle_interval_sec: int = 3600
     max_concurrent_positions: int = 5
 
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+
+    dashboard_username: str = ""
+    dashboard_password: str = ""
+
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 
     @property

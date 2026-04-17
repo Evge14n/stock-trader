@@ -119,7 +119,11 @@ def run_backtest(
     max_positions: int = 5,
     stop_loss_pct: float = 0.04,
     take_profit_pct: float = 0.08,
+    strategy_name: str = "bb_mean_reversion",
 ) -> BacktestResult:
+    from agents.strategies.base import get_strategy
+
+    strategy = get_strategy(strategy_name)
     result = BacktestResult()
     result.initial_capital = initial_capital
 
@@ -204,8 +208,7 @@ def run_backtest(
                 if idx < 30:
                     continue
 
-                df.iloc[: idx + 1]
-                signal = bb_mean_reversion_signal(df, idx)
+                signal = strategy.signal(df, idx)
 
                 if signal == "buy":
                     risk_amount = cash * risk_per_trade

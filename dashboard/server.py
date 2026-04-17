@@ -8,13 +8,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from agents.python import paper_broker
 from agents.python.data_collector import fetch_quote
 from config.settings import settings
+from dashboard.auth import verify_auth
 
 
 class PipelineRunner:
@@ -103,7 +104,11 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Stock Trader Dashboard", lifespan=lifespan)
+app = FastAPI(
+    title="Stock Trader Dashboard",
+    lifespan=lifespan,
+    dependencies=[Depends(verify_auth)],
+)
 
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():

@@ -303,15 +303,128 @@ def run_dashboard():
     )
 
 
+async def run_walk_forward_cmd(period: str, train_days: int, test_days: int):
+    from agents.python.walk_forward import run_walk_forward
+
+    console.print(
+        f"\n[bold]Walk-forward[/] on {len(settings.symbols)} symbols, period={period}, train={train_days}d, test={test_days}d"
+    )
+    console.print("[dim]Running rolling backtests...[/]\n")
+
+    report = await asyncio.to_thread(run_walk_forward, settings.symbols, period, train_days, test_days, test_days)
+    summary = report.summary()
+
+    table = Table(title="Walk-Forward Results", box=box.ROUNDED)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+    for k, v in summary.items():
+        table.add_row(k.replace("_", " ").title(), str(v))
+    console.print(table)
+
+    if report.windows:
+        w_table = Table(title=f"Windows ({len(report.windows)})", box=box.SIMPLE)
+        w_table.add_column("#")
+        w_table.add_column("Test period")
+        w_table.add_column("Test P/L $", justify="right")
+        w_table.add_column("Test P/L %", justify="right")
+        for i, w in enumerate(report.windows, 1):
+            pnl = w.test_result.get("total_pnl", 0)
+            pct = w.test_result.get("total_pnl_pct", 0)
+            color = "green" if pnl > 0 else "red"
+            w_table.add_row(
+                str(i), f"{w.test_start} .. {w.test_end}", f"[{color}]${pnl:+,.2f}[/]", f"[{color}]{pct:+.2f}%[/]"
+            )
+        console.print(w_table)
+
+
+async def run_optimize_cmd(period: str):
+    from agents.python.optimizer import run_grid_search
+
+    console.print(f"\n[bold]Grid search optimization[/] period={period}")
+    console.print("[dim]Testing parameter combinations...[/]\n")
+
+    report = await asyncio.to_thread(run_grid_search, settings.symbols, period)
+
+    if not report.best:
+        console.print("[red]No valid combinations found[/]")
+        return
+
+    table = Table(title=f"Top 10 parameter sets (of {report.param_space_size})", box=box.ROUNDED)
+    for col in ["SL", "TP", "Risk", "P/L %", "Win %", "Sharpe", "MaxDD %", "Trades", "Score"]:
+        table.add_column(col, justify="right")
+
+    for r in report.top_n(10):
+        color = "green" if r.total_pnl > 0 else "red"
+        table.add_row(
+            f"{r.stop_loss_pct:.2f}",
+            f"{r.take_profit_pct:.2f}",
+            f"{r.risk_per_trade:.2f}",
+            f"[{color}]{r.total_pnl_pct:+.2f}[/]",
+            f"{r.win_rate:.1f}",
+            f"{r.sharpe_ratio:.2f}",
+            f"{r.max_drawdown:.2f}",
+            str(r.total_trades),
+            f"{r.score():.2f}",
+        )
+    console.print(table)
+    console.print(
+        f"\n[bold green]Best:[/] SL={report.best.stop_loss_pct:.2f}, "
+        f"TP={report.best.take_profit_pct:.2f}, Risk={report.best.risk_per_trade:.2f} "
+        f"→ P/L {report.best.total_pnl_pct:+.2f}%, Sharpe {report.best.sharpe_ratio:.2f}"
+    )
+
+
+async def run_correlation_cmd(period: str):
+    from agents.python.correlation import compute_correlation_matrix
+
+    console.print(f"\n[bold]Correlation matrix[/] period={period}\n")
+    result = await asyncio.to_thread(compute_correlation_matrix, settings.symbols, period)
+
+    symbols = result["symbols"]
+    matrix = result["matrix"]
+
+    table = Table(title="Correlation matrix", box=box.SIMPLE)
+    table.add_column("", style="cyan")
+    for sym in symbols:
+        table.add_column(sym)
+
+    for sym1 in symbols:
+        row = [sym1]
+        for sym2 in symbols:
+            val = matrix.get(sym1, {}).get(sym2, 0)
+            color = "red" if val > 0.8 else "yellow" if val > 0.5 else "green"
+            row.append(f"[{color}]{val:.2f}[/]" if val != 1 else f"[dim]{val:.2f}[/]")
+        table.add_row(*row)
+    console.print(table)
+
+    if result["highly_correlated"]:
+        console.print("\n[yellow]Highly correlated pairs (> 0.8):[/]")
+        for a, b, c in result["highly_correlated"]:
+            console.print(f"  {a} <-> {b}: {c:.2f}")
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Stock Trader — Multi-Agent AI System")
     parser.add_argument(
         "command",
-        choices=["run", "loop", "status", "check", "backtest", "dashboard", "reset"],
+        choices=[
+            "run",
+            "loop",
+            "status",
+            "check",
+            "backtest",
+            "dashboard",
+            "reset",
+            "walk-forward",
+            "optimize",
+            "correlation",
+        ],
         help="Command to execute",
     )
     parser.add_argument("--interval", type=int, default=settings.cycle_interval_sec, help="Loop interval in seconds")
     parser.add_argument("--dry-run", action="store_true", help="Analyze without executing trades")
+    parser.add_argument("--train-days", type=int, default=90, help="Walk-forward train window")
+    parser.add_argument("--test-days", type=int, default=30, help="Walk-forward test window")
     parser.add_argument("--period", default="6mo", help="Backtest period (1mo, 3mo, 6mo, 1y, 2y)")
     parser.add_argument("--save", action="store_true", help="Save backtest results to paper broker DB")
     args = parser.parse_args()
@@ -326,6 +439,15 @@ async def main():
 
     elif args.command == "backtest":
         await run_backtest_cmd(args.period, save=args.save)
+
+    elif args.command == "walk-forward":
+        await run_walk_forward_cmd(args.period, args.train_days, args.test_days)
+
+    elif args.command == "optimize":
+        await run_optimize_cmd(args.period)
+
+    elif args.command == "correlation":
+        await run_correlation_cmd(args.period)
 
     elif args.command == "dashboard":
         run_dashboard()

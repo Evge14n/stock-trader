@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from agents.python import paper_broker
+from core import notifier
 from core.state import PipelineState
 
 
@@ -50,6 +51,7 @@ def submit_order(
 async def execute_trades(state: PipelineState) -> PipelineState:
     current_prices = {sym: md.price for sym, md in state.market_data.items()}
 
+    paper_broker.update_trailing_stops(current_prices, trail_pct=0.03)
     triggered = paper_broker.check_stop_targets(current_prices)
     for r in triggered:
         r["trigger"] = "auto_close"
@@ -71,6 +73,18 @@ async def execute_trades(state: PipelineState) -> PipelineState:
             )
             result["executed_at"] = datetime.now().isoformat()
             state.execution_results.append(result)
+
+            if result.get("status") == "filled":
+                await notifier.notify_trade(
+                    symbol=signal.symbol,
+                    action=signal.action,
+                    qty=signal.quantity,
+                    price=price,
+                    sl=signal.stop_loss,
+                    tp=signal.take_profit,
+                    confidence=signal.confidence,
+                    reasoning=signal.reasoning,
+                )
         except Exception as e:
             state.add_error(f"order_manager [{signal.symbol}]: {e}")
 
