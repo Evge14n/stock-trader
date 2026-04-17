@@ -144,33 +144,38 @@ def submit_order(
     confidence: float = 0.0,
     reasoning: str = "",
 ) -> dict:
+    from agents.python.broker_model import get_broker
+
+    broker = get_broker()
     now = datetime.now().isoformat()
 
     with _conn() as c:
-        cost = qty * price
         account = c.execute("SELECT cash FROM account WHERE id = 1").fetchone()
         existing = c.execute("SELECT * FROM positions WHERE symbol = ?", (symbol,)).fetchone()
 
         if side == "buy":
-            if cost > account["cash"]:
+            exec_price, commission, total_cost = broker.total_buy_cost(qty, price)
+            if total_cost > account["cash"]:
                 status = "rejected_insufficient_cash"
             elif existing:
                 status = "rejected_already_holding"
             else:
                 c.execute(
                     "INSERT INTO positions (symbol, qty, avg_entry, stop_loss, take_profit, opened_at) VALUES (?,?,?,?,?,?)",
-                    (symbol, qty, price, stop_loss, take_profit, now),
+                    (symbol, qty, exec_price, stop_loss, take_profit, now),
                 )
-                c.execute("UPDATE account SET cash = cash - ? WHERE id = 1", (cost,))
+                c.execute("UPDATE account SET cash = cash - ? WHERE id = 1", (total_cost,))
                 status = "filled"
+                price = exec_price
 
         elif side == "sell":
             if not existing:
                 status = "rejected_no_position"
             else:
-                proceeds = existing["qty"] * price
-                pnl = (price - existing["avg_entry"]) * existing["qty"]
-                pnl_pct = (price - existing["avg_entry"]) / existing["avg_entry"] if existing["avg_entry"] else 0.0
+                exec_price, commission, proceeds = broker.total_sell_proceeds(existing["qty"], price)
+                pnl = (exec_price - existing["avg_entry"]) * existing["qty"] - commission
+                pnl_pct = pnl / (existing["qty"] * existing["avg_entry"]) if existing["avg_entry"] else 0.0
+                price = exec_price
 
                 c.execute("UPDATE account SET cash = cash + ? WHERE id = 1", (proceeds,))
                 c.execute("DELETE FROM positions WHERE symbol = ?", (symbol,))

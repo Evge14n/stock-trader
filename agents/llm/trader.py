@@ -48,10 +48,22 @@ def _build_prompt(symbol: str, state: PipelineState) -> str:
     return "\n".join(lines)
 
 
-def _calc_quantity(price: float, stop_pct: float) -> int:
+def _calc_quantity(price: float, stop_pct: float, confidence: float = 0.5) -> int:
     if price <= 0 or stop_pct <= 0:
         return 0
-    risk_amount = settings.max_position_size * settings.risk_per_trade
+
+    from agents.python import paper_broker
+    from agents.python.monte_carlo import kelly_fraction
+
+    stats = paper_broker.get_trade_stats()
+    if stats["total_trades"] >= 10 and stats["avg_win"] > 0 and stats["avg_loss"] < 0:
+        kelly = kelly_fraction(stats["win_rate"], stats["avg_win"], stats["avg_loss"])
+        kelly_adjusted = kelly * confidence
+        risk_fraction = max(settings.risk_per_trade * 0.5, min(settings.risk_per_trade * 1.5, kelly_adjusted))
+    else:
+        risk_fraction = settings.risk_per_trade * (0.5 + confidence * 0.5)
+
+    risk_amount = settings.max_position_size * risk_fraction
     risk_per_share = price * stop_pct
     qty = int(risk_amount / risk_per_share)
     max_shares = int(settings.max_position_size / price)
@@ -95,7 +107,7 @@ async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
             tp_pct = pct * 2
             break
 
-    qty = _calc_quantity(md.price, stop_pct)
+    qty = _calc_quantity(md.price, stop_pct, researcher.confidence)
     if qty <= 0:
         return None
 

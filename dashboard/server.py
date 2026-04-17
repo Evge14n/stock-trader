@@ -358,6 +358,44 @@ async def export_dataset():
     }
 
 
+@app.get("/api/benchmark")
+async def benchmark():
+    from agents.python.benchmark import get_comparison
+
+    return await asyncio.to_thread(get_comparison)
+
+
+@app.get("/api/sector_heatmap")
+async def sector_heatmap():
+    from agents.python.dashboard_data import sector_heatmap as sh
+
+    return await asyncio.to_thread(sh)
+
+
+@app.get("/api/allocation")
+async def allocation():
+    from agents.python.dashboard_data import portfolio_allocation
+
+    return await asyncio.to_thread(portfolio_allocation)
+
+
+@app.get("/api/news_feed")
+async def news_feed():
+    from agents.python.dashboard_data import fetch_live_news
+
+    return await asyncio.to_thread(fetch_live_news, 3)
+
+
+@app.get("/api/circuit_breaker")
+async def circuit_breaker_status():
+    from agents.python.circuit_breaker import check_drawdown, is_trading_hours
+
+    return {
+        "drawdown": check_drawdown(),
+        "trading_hours": is_trading_hours(),
+    }
+
+
 @app.get("/api/orders")
 async def orders(limit: int = 50):
     import sqlite3

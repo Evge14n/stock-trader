@@ -237,6 +237,33 @@ body {
 
 .finetune-info { font-size: 13px; }
 
+.benchmark-content { padding: 4px 0; }
+.benchmark-alpha { font-size: 28px; font-weight: 700; margin: 4px 0; font-variant-numeric: tabular-nums; }
+.benchmark-stat { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; border-bottom: 1px solid var(--border); }
+.benchmark-stat:last-child { border-bottom: none; }
+.benchmark-label { color: var(--text-muted); }
+.benchmark-value { font-variant-numeric: tabular-nums; font-weight: 500; }
+.benchmark-verdict { padding: 8px 12px; border-radius: 8px; margin-top: 8px; font-size: 12px; font-weight: 500; }
+.verdict-beating { background: var(--pos-bg); color: var(--pos); }
+.verdict-losing { background: var(--neg-bg); color: var(--neg); }
+
+.sector-heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; padding: 4px 0; }
+.sector-tile { padding: 12px; border-radius: 10px; border-left: 4px solid var(--border); background: var(--bg-card); }
+.sector-tile.pos { border-left-color: var(--pos); background: linear-gradient(90deg, rgba(16,185,129,0.15), var(--bg-card)); }
+.sector-tile.neg { border-left-color: var(--neg); background: linear-gradient(90deg, rgba(239,68,68,0.15), var(--bg-card)); }
+.sector-name { font-weight: 700; font-size: 13px; text-transform: capitalize; }
+.sector-change { font-size: 20px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.sector-stocks { font-size: 10px; color: var(--text-muted); margin-top: 6px; }
+
+.news-feed { display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto; padding-right: 4px; }
+.news-item { display: grid; grid-template-columns: 60px 1fr 80px; gap: 12px; padding: 10px 12px; background: var(--bg-card); border-radius: 8px; align-items: center; transition: background 0.15s; }
+.news-item:hover { background: var(--border); }
+.news-symbol { font-weight: 700; font-size: 12px; color: var(--accent-hover); }
+.news-headline { font-size: 13px; }
+.news-headline a { color: var(--text); text-decoration: none; }
+.news-headline a:hover { color: var(--accent-hover); }
+.news-time { font-size: 10px; color: var(--text-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
 @media (max-width: 1100px) {
   .layout { grid-template-columns: 1fr; }
   .sidebar { display: none; }

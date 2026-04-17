@@ -485,6 +485,201 @@ async function loadAnalyticsView() {
 }
 
 
+let allocationChart = null;
+
+async function loadBenchmark() {
+  const el = document.getElementById('benchmark-content');
+  const statusEl = document.getElementById('benchmark-status');
+  if (!el) return;
+
+  try {
+    const data = await fetchJson('/api/benchmark');
+    el.replaceChildren();
+
+    if (data.error) {
+      statusEl.textContent = data.error;
+      return;
+    }
+
+    statusEl.textContent = data.benchmark;
+
+    const alpha = data.alpha_pct;
+    const alphaCls = alpha >= 0 ? 'pos' : 'neg';
+    const alphaLabel = document.createElement('div');
+    alphaLabel.className = 'muted';
+    alphaLabel.style.fontSize = '11px';
+    alphaLabel.textContent = 'Alpha (відносно ринку)';
+    el.appendChild(alphaLabel);
+
+    const alphaValue = document.createElement('div');
+    alphaValue.className = `benchmark-alpha ${alphaCls}`;
+    alphaValue.textContent = (alpha >= 0 ? '+' : '') + alpha.toFixed(2) + '%';
+    el.appendChild(alphaValue);
+
+    const stats = [
+      ['Портфель за період', (data.portfolio_return_pct >= 0 ? '+' : '') + data.portfolio_return_pct.toFixed(2) + '%'],
+      [`${data.benchmark} за період`, (data.benchmark_return_pct >= 0 ? '+' : '') + data.benchmark_return_pct.toFixed(2) + '%'],
+      ['Beta', data.beta.toFixed(2)],
+    ];
+
+    stats.forEach(([l, v]) => {
+      const row = document.createElement('div');
+      row.className = 'benchmark-stat';
+      const lbl = document.createElement('span');
+      lbl.className = 'benchmark-label';
+      lbl.textContent = l;
+      const val = document.createElement('span');
+      val.className = 'benchmark-value';
+      val.textContent = v;
+      row.appendChild(lbl);
+      row.appendChild(val);
+      el.appendChild(row);
+    });
+
+    const verdict = document.createElement('div');
+    verdict.className = `benchmark-verdict ${data.beating_market ? 'verdict-beating' : 'verdict-losing'}`;
+    verdict.textContent = data.beating_market
+      ? `✅ Обганяєш ринок на ${Math.abs(alpha).toFixed(2)}%`
+      : `⚠️ Програєш ринку на ${Math.abs(alpha).toFixed(2)}%`;
+    el.appendChild(verdict);
+  } catch (e) {
+    statusEl.textContent = 'помилка';
+  }
+}
+
+async function loadAllocation() {
+  const data = await fetchJson('/api/allocation');
+  const ctx = document.getElementById('allocation-chart');
+  if (!ctx) return;
+
+  const labels = ['Кеш'];
+  const values = [data.cash.value];
+  const colors = ['#6366f1'];
+
+  const sectorColors = {
+    tech: '#10b981',
+    finance: '#f59e0b',
+    healthcare: '#a78bfa',
+    energy: '#ef4444',
+    consumer_discretionary: '#3b82f6',
+    consumer_staples: '#14b8a6',
+    commodities: '#eab308',
+    crypto: '#ec4899',
+  };
+
+  for (const [sector, info] of Object.entries(data.by_sector || {})) {
+    if (info.value > 0) {
+      labels.push(sector.replace('_', ' '));
+      values.push(info.value);
+      colors.push(sectorColors[sector] || '#8a94a6');
+    }
+  }
+
+  if (allocationChart) {
+    allocationChart.data.labels = labels;
+    allocationChart.data.datasets[0].data = values;
+    allocationChart.data.datasets[0].backgroundColor = colors;
+    allocationChart.update('none');
+    return;
+  }
+
+  allocationChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: values, backgroundColor: colors, borderColor: 'rgba(0,0,0,0)', borderWidth: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#e8ecf3', font: { size: 11 }, padding: 8 } },
+        tooltip: { callbacks: { label: (ctx) => `${ctx.label}: $${ctx.parsed.toLocaleString()}` } },
+      },
+    },
+  });
+}
+
+async function loadSectorHeatmap() {
+  const el = document.getElementById('sector-heatmap-content');
+  if (!el) return;
+  el.replaceChildren();
+
+  const data = await fetchJson('/api/sector_heatmap');
+  const entries = Object.entries(data);
+
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.style.padding = '12px';
+    empty.textContent = 'Немає даних';
+    el.appendChild(empty);
+    return;
+  }
+
+  entries.forEach(([sector, info]) => {
+    const tile = document.createElement('div');
+    const cls = info.avg_change_pct >= 0 ? 'pos' : 'neg';
+    tile.className = `sector-tile ${cls}`;
+
+    const name = document.createElement('div');
+    name.className = 'sector-name';
+    name.textContent = sector.replace('_', ' ');
+    tile.appendChild(name);
+
+    const change = document.createElement('div');
+    change.className = `sector-change ${cls}`;
+    change.textContent = (info.avg_change_pct >= 0 ? '+' : '') + info.avg_change_pct.toFixed(2) + '%';
+    tile.appendChild(change);
+
+    const stocks = document.createElement('div');
+    stocks.className = 'sector-stocks';
+    stocks.textContent = (info.stocks || []).map(s => s.symbol).join(', ');
+    tile.appendChild(stocks);
+
+    el.appendChild(tile);
+  });
+}
+
+async function loadNewsFeed() {
+  const el = document.getElementById('news-feed-content');
+  if (!el) return;
+  el.replaceChildren();
+
+  const news = await fetchJson('/api/news_feed');
+  if (!news.length) {
+    const empty = document.createElement('div');
+    empty.className = 'muted';
+    empty.style.padding = '12px';
+    empty.textContent = 'Немає новин';
+    el.appendChild(empty);
+    return;
+  }
+
+  news.slice(0, 15).forEach(n => {
+    const item = document.createElement('div');
+    item.className = 'news-item';
+
+    const sym = document.createElement('div');
+    sym.className = 'news-symbol';
+    sym.textContent = n.symbol;
+    item.appendChild(sym);
+
+    const headline = document.createElement('div');
+    headline.className = 'news-headline';
+    const link = document.createElement('a');
+    link.href = n.url;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = n.headline;
+    headline.appendChild(link);
+    item.appendChild(headline);
+
+    const time = document.createElement('div');
+    time.className = 'news-time';
+    time.textContent = fmt.dt(n.timestamp);
+    item.appendChild(time);
+
+    el.appendChild(item);
+  });
+}
+
 const REGIME_LABELS = {
   bull_trend: '📈 Бичачий тренд',
   bear_trend: '📉 Ведмежий тренд',
@@ -767,6 +962,9 @@ async function refreshAll() {
     loadStatus(),
   ]);
 
+  if (active === 'view-overview') {
+    Promise.allSettled([loadBenchmark(), loadAllocation(), loadSectorHeatmap(), loadNewsFeed()]);
+  }
   if (active === 'view-trades') await loadTrades();
   if (active === 'view-analyses') await loadAnalyses();
   if (active === 'view-activity') await loadActivity();

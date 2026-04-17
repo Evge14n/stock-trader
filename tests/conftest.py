@@ -8,10 +8,20 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def isolated_db(monkeypatch, tmp_path):
-    from agents.python import paper_broker
+    from agents.python import broker_model, paper_broker
 
     test_db = tmp_path / "test_broker.db"
     monkeypatch.setattr(paper_broker, "_db_path", lambda: test_db)
+
+    zero_broker = broker_model.BrokerModel(
+        slippage_pct=0.0,
+        commission_per_share=0.0,
+        commission_min=0.0,
+        commission_max=0.0,
+    )
+    monkeypatch.setattr(broker_model, "DEFAULT_BROKER", zero_broker)
+    monkeypatch.setattr(broker_model, "get_broker", lambda: zero_broker)
+
     yield test_db
 
 

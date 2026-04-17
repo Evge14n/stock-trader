@@ -77,7 +77,17 @@ def _check_price_validity(signal: TradeSignal) -> tuple[bool, str]:
     return True, "ok"
 
 
+def _check_circuit_breaker(signal: TradeSignal) -> tuple[bool, str]:
+    from agents.python.circuit_breaker import should_block_trading
+
+    blocked, reason = should_block_trading(max_drawdown_pct=10.0)
+    if blocked:
+        return False, reason
+    return True, "ok"
+
+
 CHECKS = [
+    ("circuit_breaker", _check_circuit_breaker),
     ("price_validity", _check_price_validity),
     ("confidence", _check_confidence),
     ("position_size", _check_position_size),

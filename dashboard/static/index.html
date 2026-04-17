@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Trader Dashboard</title>
-<link rel="stylesheet" href="/static/style.css?v=3">
+<link rel="stylesheet" href="/static/style.css?v=4">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
@@ -135,6 +135,43 @@
           <h3>Поточні позиції</h3>
         </div>
         <div id="positions-overview" class="positions-grid"></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>📊 vs S&P 500</h3>
+            <span class="muted" id="benchmark-status">завантаження...</span>
+          </div>
+          <div id="benchmark-content" class="benchmark-content">
+            <div class="muted" style="padding:12px;">Завантаження порівняння...</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>🥧 Розподіл капіталу</h3>
+          </div>
+          <div id="allocation-content">
+            <div class="chart-wrap"><canvas id="allocation-chart"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🔥 Sector Heatmap</h3>
+          <span class="muted">зміна за день по секторах</span>
+        </div>
+        <div id="sector-heatmap-content" class="sector-heatmap"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>📰 Live News</h3>
+          <span class="muted">останні новини watchlist</span>
+        </div>
+        <div id="news-feed-content" class="news-feed"></div>
       </div>
     </section>
 
@@ -290,6 +327,6 @@
   </main>
 </div>
 
-<script src="/static/app.js?v=3"></script>
+<script src="/static/app.js?v=4"></script>
 </body>
 </html>
