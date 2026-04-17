@@ -40,14 +40,16 @@ def fetch_candles(symbol: str, period: str = "3mo", interval: str = "1d") -> lis
 
     rows = []
     for idx, row in hist.iterrows():
-        rows.append({
-            "timestamp": int(idx.timestamp()),
-            "open": float(row["Open"]),
-            "high": float(row["High"]),
-            "low": float(row["Low"]),
-            "close": float(row["Close"]),
-            "volume": int(row["Volume"]),
-        })
+        rows.append(
+            {
+                "timestamp": int(idx.timestamp()),
+                "open": float(row["Open"]),
+                "high": float(row["High"]),
+                "low": float(row["Low"]),
+                "close": float(row["Close"]),
+                "volume": int(row["Volume"]),
+            }
+        )
     return rows
 
 

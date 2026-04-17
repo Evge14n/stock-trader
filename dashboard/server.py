@@ -74,11 +74,14 @@ class PipelineRunner:
                     final_state = node_state
 
             self.last_result = final_state
-            self.log("cycle_completed", {
-                "cycle_id": cycle_id,
-                "signals": len(final_state.get("signals", [])),
-                "executed": len(final_state.get("execution_results", [])),
-            })
+            self.log(
+                "cycle_completed",
+                {
+                    "cycle_id": cycle_id,
+                    "signals": len(final_state.get("signals", [])),
+                    "executed": len(final_state.get("execution_results", [])),
+                },
+            )
             return final_state
         except Exception as e:
             self.log("cycle_error", {"error": str(e)})
@@ -160,6 +163,7 @@ async def stats():
 @app.get("/api/trades")
 async def trades(limit: int = 500):
     import sqlite3
+
     with sqlite3.connect(paper_broker._db_path()) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
@@ -171,9 +175,10 @@ async def trades(limit: int = 500):
 
 @app.get("/api/trades/csv")
 async def trades_csv():
-    import sqlite3
     import csv
     import io as strio
+    import sqlite3
+
     from fastapi.responses import PlainTextResponse
 
     with sqlite3.connect(paper_broker._db_path()) as conn:
@@ -205,8 +210,12 @@ async def analytics():
 
     by_symbol: dict[str, dict] = {}
     pnl_buckets: dict[str, int] = {
-        "<-500": 0, "-500_to_-200": 0, "-200_to_0": 0,
-        "0_to_200": 0, "200_to_500": 0, ">500": 0,
+        "<-500": 0,
+        "-500_to_-200": 0,
+        "-200_to_0": 0,
+        "0_to_200": 0,
+        "200_to_500": 0,
+        ">500": 0,
     }
 
     for t in trades:
@@ -252,6 +261,7 @@ async def analytics():
 @app.get("/api/orders")
 async def orders(limit: int = 50):
     import sqlite3
+
     with sqlite3.connect(paper_broker._db_path()) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
@@ -357,4 +367,5 @@ async def market_snapshot():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

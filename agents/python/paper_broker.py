@@ -117,24 +117,33 @@ def list_positions(prices: dict[str, float] | None = None) -> list[dict]:
         current = prices.get(r["symbol"], r["avg_entry"])
         unrealized_pl = (current - r["avg_entry"]) * r["qty"]
         unrealized_plpc = (current - r["avg_entry"]) / r["avg_entry"] if r["avg_entry"] else 0.0
-        result.append({
-            "symbol": r["symbol"],
-            "qty": r["qty"],
-            "side": "long" if r["qty"] > 0 else "short",
-            "avg_entry": r["avg_entry"],
-            "current_price": current,
-            "unrealized_pl": round(unrealized_pl, 2),
-            "unrealized_plpc": round(unrealized_plpc, 4),
-            "stop_loss": r["stop_loss"],
-            "take_profit": r["take_profit"],
-            "opened_at": r["opened_at"],
-        })
+        result.append(
+            {
+                "symbol": r["symbol"],
+                "qty": r["qty"],
+                "side": "long" if r["qty"] > 0 else "short",
+                "avg_entry": r["avg_entry"],
+                "current_price": current,
+                "unrealized_pl": round(unrealized_pl, 2),
+                "unrealized_plpc": round(unrealized_plpc, 4),
+                "stop_loss": r["stop_loss"],
+                "take_profit": r["take_profit"],
+                "opened_at": r["opened_at"],
+            }
+        )
     return result
 
 
-def submit_order(symbol: str, qty: int, side: str, price: float,
-                 stop_loss: float | None = None, take_profit: float | None = None,
-                 confidence: float = 0.0, reasoning: str = "") -> dict:
+def submit_order(
+    symbol: str,
+    qty: int,
+    side: str,
+    price: float,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
+    confidence: float = 0.0,
+    reasoning: str = "",
+) -> dict:
     now = datetime.now().isoformat()
 
     with _conn() as c:
@@ -167,8 +176,18 @@ def submit_order(symbol: str, qty: int, side: str, price: float,
                 c.execute("DELETE FROM positions WHERE symbol = ?", (symbol,))
                 c.execute(
                     "INSERT INTO trades (symbol, side, qty, entry_price, exit_price, pnl, pnl_pct, opened_at, closed_at, close_reason) VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (symbol, "long", existing["qty"], existing["avg_entry"], price,
-                     round(pnl, 2), round(pnl_pct, 4), existing["opened_at"], now, "signal_exit"),
+                    (
+                        symbol,
+                        "long",
+                        existing["qty"],
+                        existing["avg_entry"],
+                        price,
+                        round(pnl, 2),
+                        round(pnl_pct, 4),
+                        existing["opened_at"],
+                        now,
+                        "signal_exit",
+                    ),
                 )
                 status = "filled"
         else:
@@ -236,7 +255,15 @@ def get_trade_stats() -> dict:
         rows = c.execute("SELECT * FROM trades WHERE closed_at IS NOT NULL").fetchall()
 
     if not rows:
-        return {"total_trades": 0, "wins": 0, "losses": 0, "win_rate": 0.0, "total_pnl": 0.0, "avg_win": 0.0, "avg_loss": 0.0}
+        return {
+            "total_trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "win_rate": 0.0,
+            "total_pnl": 0.0,
+            "avg_win": 0.0,
+            "avg_loss": 0.0,
+        }
 
     wins = [r for r in rows if r["pnl"] and r["pnl"] > 0]
     losses = [r for r in rows if r["pnl"] and r["pnl"] < 0]

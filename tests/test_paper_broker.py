@@ -66,8 +66,12 @@ def test_sell_without_position_rejected():
 
 def test_stop_loss_triggered():
     paper_broker.submit_order(
-        "AAPL", 10, "buy", 150.0,
-        stop_loss=145.0, take_profit=165.0,
+        "AAPL",
+        10,
+        "buy",
+        150.0,
+        stop_loss=145.0,
+        take_profit=165.0,
     )
     closed = paper_broker.check_stop_targets({"AAPL": 144.0})
     assert len(closed) == 1
@@ -77,8 +81,12 @@ def test_stop_loss_triggered():
 
 def test_take_profit_triggered():
     paper_broker.submit_order(
-        "AAPL", 10, "buy", 150.0,
-        stop_loss=145.0, take_profit=165.0,
+        "AAPL",
+        10,
+        "buy",
+        150.0,
+        stop_loss=145.0,
+        take_profit=165.0,
     )
     closed = paper_broker.check_stop_targets({"AAPL": 166.0})
     assert len(closed) == 1

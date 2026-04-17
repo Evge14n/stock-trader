@@ -62,7 +62,9 @@ def calc_bollinger(closes: pd.Series, period: int = 20, std_dev: float = 2.0) ->
     upper = sma + std_dev * std
     lower = sma - std_dev * std
     price = closes.iloc[-1]
-    bb_position = (price - lower.iloc[-1]) / (upper.iloc[-1] - lower.iloc[-1]) if upper.iloc[-1] != lower.iloc[-1] else 0.5
+    bb_position = (
+        (price - lower.iloc[-1]) / (upper.iloc[-1] - lower.iloc[-1]) if upper.iloc[-1] != lower.iloc[-1] else 0.5
+    )
     return {
         "upper": round(float(upper.iloc[-1]), 2),
         "middle": round(float(sma.iloc[-1]), 2),
@@ -175,11 +177,20 @@ async def compute_all(state: PipelineState) -> PipelineState:
         results.append(Indicator(name="BB", value=bb["bb_position"], signal=_signal_from_bb(bb), details=bb))
 
         atr = calc_atr(df)
-        results.append(Indicator(name="ATR", value=atr, signal="high_vol" if atr > closes.iloc[-1] * 0.03 else "normal", details={"period": 14}))
+        results.append(
+            Indicator(
+                name="ATR",
+                value=atr,
+                signal="high_vol" if atr > closes.iloc[-1] * 0.03 else "normal",
+                details={"period": 14},
+            )
+        )
 
         vwap = calc_vwap(df)
         price = closes.iloc[-1]
-        results.append(Indicator(name="VWAP", value=vwap, signal="above" if price > vwap else "below", details={"price": price}))
+        results.append(
+            Indicator(name="VWAP", value=vwap, signal="above" if price > vwap else "below", details={"price": price})
+        )
 
         obv = calc_obv(df)
         obv_trend = "rising" if obv > 0 else "falling"
@@ -189,23 +200,29 @@ async def compute_all(state: PipelineState) -> PipelineState:
         results.append(Indicator(name="Stochastic", value=stoch["k"], signal=_signal_from_stoch(stoch), details=stoch))
 
         adx = calc_adx(df)
-        results.append(Indicator(name="ADX", value=adx, signal="trending" if adx > 25 else "ranging", details={"period": 14}))
+        results.append(
+            Indicator(name="ADX", value=adx, signal="trending" if adx > 25 else "ranging", details={"period": 14})
+        )
 
         sma50 = calc_sma(closes, 50)
         sma200 = calc_sma(closes, 200) if len(closes) >= 200 else pd.Series([np.nan])
         if not pd.isna(sma50.iloc[-1]):
-            results.append(Indicator(
-                name="SMA50",
-                value=round(float(sma50.iloc[-1]), 2),
-                signal="above" if price > sma50.iloc[-1] else "below",
-            ))
+            results.append(
+                Indicator(
+                    name="SMA50",
+                    value=round(float(sma50.iloc[-1]), 2),
+                    signal="above" if price > sma50.iloc[-1] else "below",
+                )
+            )
         if len(closes) >= 200 and not pd.isna(sma200.iloc[-1]):
             cross = "golden" if sma50.iloc[-1] > sma200.iloc[-1] else "death"
-            results.append(Indicator(
-                name="SMA200",
-                value=round(float(sma200.iloc[-1]), 2),
-                signal=cross,
-            ))
+            results.append(
+                Indicator(
+                    name="SMA200",
+                    value=round(float(sma200.iloc[-1]), 2),
+                    signal=cross,
+                )
+            )
 
         state.indicators[symbol] = results
 

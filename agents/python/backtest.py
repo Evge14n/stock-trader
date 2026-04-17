@@ -64,7 +64,7 @@ class BacktestResult:
         std_r = (sum((r - mean_r) ** 2 for r in returns) / len(returns)) ** 0.5
         if std_r == 0:
             return 0.0
-        return (mean_r / std_r) * (252 ** 0.5)
+        return (mean_r / std_r) * (252**0.5)
 
     def summary(self) -> dict:
         return {
@@ -85,7 +85,7 @@ def bb_mean_reversion_signal(df: pd.DataFrame, i: int) -> str:
     if i < 30:
         return "hold"
 
-    window = df.iloc[:i + 1]
+    window = df.iloc[: i + 1]
     closes = window["close"]
 
     rsi = calc_rsi(closes)
@@ -176,17 +176,19 @@ def run_backtest(
             if exit_reason:
                 pnl = (exit_price - pos["entry"]) * pos["qty"]
                 cash += pos["qty"] * exit_price
-                result.trades.append({
-                    "symbol": sym,
-                    "entry": pos["entry"],
-                    "exit": exit_price,
-                    "qty": pos["qty"],
-                    "pnl": round(pnl, 2),
-                    "pnl_pct": round((exit_price - pos["entry"]) / pos["entry"] * 100, 2),
-                    "opened_at": pos["opened_at"],
-                    "closed_at": datetime.fromtimestamp(ts).isoformat(),
-                    "reason": exit_reason,
-                })
+                result.trades.append(
+                    {
+                        "symbol": sym,
+                        "entry": pos["entry"],
+                        "exit": exit_price,
+                        "qty": pos["qty"],
+                        "pnl": round(pnl, 2),
+                        "pnl_pct": round((exit_price - pos["entry"]) / pos["entry"] * 100, 2),
+                        "opened_at": pos["opened_at"],
+                        "closed_at": datetime.fromtimestamp(ts).isoformat(),
+                        "reason": exit_reason,
+                    }
+                )
                 closed_today.append(sym)
 
         for sym in closed_today:
@@ -202,7 +204,7 @@ def run_backtest(
                 if idx < 30:
                     continue
 
-                df.iloc[:idx + 1]
+                df.iloc[: idx + 1]
                 signal = bb_mean_reversion_signal(df, idx)
 
                 if signal == "buy":
@@ -230,16 +232,19 @@ def run_backtest(
                         if len(positions) >= max_positions:
                             break
 
-        positions_value = sum(p["qty"] * daily_prices.get(sym, {"price": p["entry"]})["price"]
-                              for sym, p in positions.items())
+        positions_value = sum(
+            p["qty"] * daily_prices.get(sym, {"price": p["entry"]})["price"] for sym, p in positions.items()
+        )
         equity = cash + positions_value
-        result.equity_curve.append({
-            "timestamp": datetime.fromtimestamp(ts).isoformat(),
-            "cash": round(cash, 2),
-            "positions_value": round(positions_value, 2),
-            "equity": round(equity, 2),
-            "open_positions": len(positions),
-        })
+        result.equity_curve.append(
+            {
+                "timestamp": datetime.fromtimestamp(ts).isoformat(),
+                "cash": round(cash, 2),
+                "positions_value": round(positions_value, 2),
+                "equity": round(equity, 2),
+                "open_positions": len(positions),
+            }
+        )
 
     final_prices = {}
     for sym, df in data_by_symbol.items():
@@ -249,17 +254,19 @@ def run_backtest(
         exit_price = final_prices.get(sym, pos["entry"])
         pnl = (exit_price - pos["entry"]) * pos["qty"]
         cash += pos["qty"] * exit_price
-        result.trades.append({
-            "symbol": sym,
-            "entry": pos["entry"],
-            "exit": exit_price,
-            "qty": pos["qty"],
-            "pnl": round(pnl, 2),
-            "pnl_pct": round((exit_price - pos["entry"]) / pos["entry"] * 100, 2),
-            "opened_at": pos["opened_at"],
-            "closed_at": result.equity_curve[-1]["timestamp"] if result.equity_curve else "",
-            "reason": "end_of_period",
-        })
+        result.trades.append(
+            {
+                "symbol": sym,
+                "entry": pos["entry"],
+                "exit": exit_price,
+                "qty": pos["qty"],
+                "pnl": round(pnl, 2),
+                "pnl_pct": round((exit_price - pos["entry"]) / pos["entry"] * 100, 2),
+                "opened_at": pos["opened_at"],
+                "closed_at": result.equity_curve[-1]["timestamp"] if result.equity_curve else "",
+                "reason": "end_of_period",
+            }
+        )
 
     result.final_capital = cash
     return result
@@ -287,9 +294,16 @@ def save_to_broker(result: BacktestResult) -> None:
             conn.execute(
                 "INSERT INTO trades (symbol, side, qty, entry_price, exit_price, pnl, pnl_pct, opened_at, closed_at, close_reason) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
-                    t["symbol"], "long", t["qty"], t["entry"], t["exit"],
-                    t["pnl"], t["pnl_pct"] / 100 if t["pnl_pct"] else 0,
-                    t["opened_at"], t["closed_at"], t["reason"],
+                    t["symbol"],
+                    "long",
+                    t["qty"],
+                    t["entry"],
+                    t["exit"],
+                    t["pnl"],
+                    t["pnl_pct"] / 100 if t["pnl_pct"] else 0,
+                    t["opened_at"],
+                    t["closed_at"],
+                    t["reason"],
                 ),
             )
 

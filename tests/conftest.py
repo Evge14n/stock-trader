@@ -24,12 +24,14 @@ def sample_ohlcv():
     for i in range(60):
         drift = math.sin(i / 10) * 5
         price = base_price + drift + (i * 0.3)
-        candles.append({
-            "timestamp": 1700000000 + i * 86400,
-            "open": price - 1,
-            "high": price + 2,
-            "low": price - 2,
-            "close": price,
-            "volume": 1_000_000 + i * 10_000,
-        })
+        candles.append(
+            {
+                "timestamp": 1700000000 + i * 86400,
+                "open": price - 1,
+                "high": price + 2,
+                "low": price - 2,
+                "close": price,
+                "volume": 1_000_000 + i * 10_000,
+            }
+        )
     return candles

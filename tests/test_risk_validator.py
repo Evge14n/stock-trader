@@ -61,14 +61,24 @@ async def test_zero_quantity_rejected(valid_signal):
 
 async def test_duplicate_symbol_rejected():
     first = TradeSignal(
-        symbol="AAPL", action="buy", quantity=5,
-        entry_price=150.0, stop_loss=145.0, take_profit=165.0,
-        confidence=0.75, reasoning="",
+        symbol="AAPL",
+        action="buy",
+        quantity=5,
+        entry_price=150.0,
+        stop_loss=145.0,
+        take_profit=165.0,
+        confidence=0.75,
+        reasoning="",
     )
     second = TradeSignal(
-        symbol="AAPL", action="buy", quantity=3,
-        entry_price=151.0, stop_loss=146.0, take_profit=166.0,
-        confidence=0.8, reasoning="",
+        symbol="AAPL",
+        action="buy",
+        quantity=3,
+        entry_price=151.0,
+        stop_loss=146.0,
+        take_profit=166.0,
+        confidence=0.8,
+        reasoning="",
     )
     state = PipelineState(signals=[first, second])
     state = await validate(state)

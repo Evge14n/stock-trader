@@ -109,15 +109,17 @@ async def node_execute(state: dict[str, Any]) -> dict[str, Any]:
             portfolio_tracker.log_trade(result)
     elif ps.approved_trades and ps.dry_run:
         for sig in ps.approved_trades:
-            ps.execution_results.append({
-                "symbol": sig.symbol,
-                "side": sig.action,
-                "qty": sig.quantity,
-                "status": "DRY_RUN",
-                "entry": sig.entry_price,
-                "stop_loss": sig.stop_loss,
-                "take_profit": sig.take_profit,
-            })
+            ps.execution_results.append(
+                {
+                    "symbol": sig.symbol,
+                    "side": sig.action,
+                    "qty": sig.quantity,
+                    "status": "DRY_RUN",
+                    "entry": sig.entry_price,
+                    "stop_loss": sig.stop_loss,
+                    "take_profit": sig.take_profit,
+                }
+            )
     if not ps.dry_run:
         try:
             snap = portfolio_tracker.snapshot()
@@ -166,10 +168,14 @@ def build_graph() -> StateGraph:
     graph.add_edge("volatility_analysis", "research")
     graph.add_edge("research", "trade_decision")
 
-    graph.add_conditional_edges("trade_decision", should_continue, {
-        "execute": "risk_check",
-        "skip_execution": "execute",
-    })
+    graph.add_conditional_edges(
+        "trade_decision",
+        should_continue,
+        {
+            "execute": "risk_check",
+            "skip_execution": "execute",
+        },
+    )
     graph.add_edge("risk_check", "execute")
     graph.add_edge("execute", END)
 
@@ -178,6 +184,7 @@ def build_graph() -> StateGraph:
 
 def _state_to_dict(ps: PipelineState) -> dict[str, Any]:
     from dataclasses import asdict
+
     return asdict(ps)
 
 

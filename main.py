@@ -28,11 +28,13 @@ console = Console()
 
 
 def print_banner():
-    console.print(Panel.fit(
-        "[bold cyan]Stock Trader[/] — Multi-Agent AI Trading System\n"
-        f"Model: {settings.ollama_model} | Symbols: {len(settings.symbols)} | Paper Trading",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]Stock Trader[/] — Multi-Agent AI Trading System\n"
+            f"Model: {settings.ollama_model} | Symbols: {len(settings.symbols)} | Paper Trading",
+            border_style="cyan",
+        )
+    )
 
 
 async def check_dependencies(dry_run: bool = False) -> bool:
@@ -45,6 +47,7 @@ async def check_dependencies(dry_run: bool = False) -> bool:
     checks.append(("Finnhub API", api_ok, True))
 
     from agents.python import paper_broker
+
     try:
         acc = paper_broker.get_account()
         broker_ok = acc["equity"] > 0
@@ -123,7 +126,13 @@ def print_results(state: dict):
             for a in items:
                 sig = a if isinstance(a, dict) else {"signal": str(a)}
                 signal = sig.get("signal", "?")
-                color = "green" if "bull" in signal or "buy" in signal else "red" if "bear" in signal or "sell" in signal else "yellow"
+                color = (
+                    "green"
+                    if "bull" in signal or "buy" in signal
+                    else "red"
+                    if "bear" in signal or "sell" in signal
+                    else "yellow"
+                )
                 table.add_row(
                     symbol,
                     sig.get("agent", "?"),
@@ -183,14 +192,16 @@ async def show_status():
     account = snap.get("account", {})
     positions = snap.get("positions", [])
 
-    console.print(Panel.fit(
-        f"Equity: ${account.get('equity', 0):,.2f}\n"
-        f"Cash: ${account.get('cash', 0):,.2f}\n"
-        f"Positions: {len(positions)}\n"
-        f"Unrealized P/L: ${snap.get('total_unrealized_pl', 0):,.2f}",
-        title="Portfolio",
-        border_style="green",
-    ))
+    console.print(
+        Panel.fit(
+            f"Equity: ${account.get('equity', 0):,.2f}\n"
+            f"Cash: ${account.get('cash', 0):,.2f}\n"
+            f"Positions: {len(positions)}\n"
+            f"Unrealized P/L: ${snap.get('total_unrealized_pl', 0):,.2f}",
+            title="Portfolio",
+            border_style="green",
+        )
+    )
 
     if positions:
         table = Table(title="Open Positions", box=box.ROUNDED)
@@ -213,7 +224,9 @@ async def show_status():
         console.print(table)
 
     stats = portfolio_tracker.summary()
-    console.print(f"\n  Total trades: {stats['total_trades']} | Win rate: {stats['win_rate']:.1%} | Total P/L: ${stats['total_pl']:+.2f}")
+    console.print(
+        f"\n  Total trades: {stats['total_trades']} | Win rate: {stats['win_rate']:.1%} | Total P/L: ${stats['total_pl']:+.2f}"
+    )
 
 
 async def run_backtest_cmd(period: str, symbols: list[str] | None = None, save: bool = False):
@@ -279,6 +292,7 @@ async def run_backtest_cmd(period: str, symbols: list[str] | None = None, save: 
 
 def run_dashboard():
     import uvicorn
+
     console.print("[bold cyan]Dashboard[/] running at [underline]http://localhost:8000[/]")
     console.print("[dim]Press Ctrl+C to stop[/]\n")
     uvicorn.run(
@@ -291,8 +305,11 @@ def run_dashboard():
 
 async def main():
     parser = argparse.ArgumentParser(description="Stock Trader — Multi-Agent AI System")
-    parser.add_argument("command", choices=["run", "loop", "status", "check", "backtest", "dashboard", "reset"],
-                        help="Command to execute")
+    parser.add_argument(
+        "command",
+        choices=["run", "loop", "status", "check", "backtest", "dashboard", "reset"],
+        help="Command to execute",
+    )
     parser.add_argument("--interval", type=int, default=settings.cycle_interval_sec, help="Loop interval in seconds")
     parser.add_argument("--dry-run", action="store_true", help="Analyze without executing trades")
     parser.add_argument("--period", default="6mo", help="Backtest period (1mo, 3mo, 6mo, 1y, 2y)")
@@ -315,6 +332,7 @@ async def main():
 
     elif args.command == "reset":
         from agents.python import paper_broker
+
         paper_broker.reset_account()
         console.print("[green]Account reset to $100,000[/]")
 

@@ -62,8 +62,12 @@ async def _synthesize_one(symbol: str, state: PipelineState) -> Analysis | None:
 
     signal = "hold"
     signal_map = {
-        "strong_buy": "strong_buy", "strong buy": "strong_buy", "buy": "buy",
-        "strong_sell": "strong_sell", "strong sell": "strong_sell", "sell": "sell",
+        "strong_buy": "strong_buy",
+        "strong buy": "strong_buy",
+        "buy": "buy",
+        "strong_sell": "strong_sell",
+        "strong sell": "strong_sell",
+        "sell": "sell",
         "hold": "hold",
     }
     resp_lower = response.lower()

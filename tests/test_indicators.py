@@ -29,6 +29,7 @@ def test_rsi_in_range(sample_ohlcv):
 
 def test_rsi_uptrend_is_high():
     import pandas as pd
+
     closes = pd.Series(list(range(100, 150)))
     rsi = calc_rsi(closes)
     assert rsi > 70
@@ -36,6 +37,7 @@ def test_rsi_uptrend_is_high():
 
 def test_rsi_downtrend_is_low():
     import pandas as pd
+
     closes = pd.Series(list(range(150, 100, -1)))
     rsi = calc_rsi(closes)
     assert rsi < 30

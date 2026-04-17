@@ -26,13 +26,15 @@ def fetch_news(symbol: str, days: int = 3) -> list[NewsItem]:
     raw = client.company_news(symbol, _from=from_date, to=today)
     items = []
     for article in raw[:10]:
-        items.append(NewsItem(
-            headline=article.get("headline", ""),
-            source=article.get("source", ""),
-            url=article.get("url", ""),
-            sentiment=0.0,
-            timestamp=datetime.fromtimestamp(article.get("datetime", 0)).isoformat(),
-        ))
+        items.append(
+            NewsItem(
+                headline=article.get("headline", ""),
+                source=article.get("source", ""),
+                url=article.get("url", ""),
+                sentiment=0.0,
+                timestamp=datetime.fromtimestamp(article.get("datetime", 0)).isoformat(),
+            )
+        )
     return items
 
 

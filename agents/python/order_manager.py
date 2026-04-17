@@ -25,9 +25,16 @@ def get_positions_with_prices(prices: dict[str, float]) -> list[dict]:
     return paper_broker.list_positions(prices)
 
 
-def submit_order(symbol: str, qty: int, side: str, price: float,
-                 stop_loss: float | None = None, take_profit: float | None = None,
-                 confidence: float = 0.0, reasoning: str = "") -> dict:
+def submit_order(
+    symbol: str,
+    qty: int,
+    side: str,
+    price: float,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
+    confidence: float = 0.0,
+    reasoning: str = "",
+) -> dict:
     return paper_broker.submit_order(
         symbol=symbol,
         qty=qty,
