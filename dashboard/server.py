@@ -104,9 +104,45 @@ class PipelineRunner:
 runner = PipelineRunner()
 
 
+def _auto_state_path() -> Path:
+    p = settings.data_dir
+    p.mkdir(parents=True, exist_ok=True)
+    return p / "auto_state.json"
+
+
+def _save_auto_state() -> None:
+    import contextlib
+    import json
+
+    with contextlib.suppress(Exception):
+        _auto_state_path().write_text(
+            json.dumps({"auto_mode": runner.auto_mode, "interval_sec": runner.interval_sec}),
+            encoding="utf-8",
+        )
+
+
+def _load_auto_state() -> dict:
+    import json
+
+    path = _auto_state_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    state = _load_auto_state()
+    if state.get("auto_mode"):
+        runner.auto_mode = True
+        runner.interval_sec = int(state.get("interval_sec", 3600))
+        runner._auto_task = asyncio.create_task(runner.auto_loop())
+        runner.log("auto_resumed_on_startup", {"interval_sec": runner.interval_sec})
     yield
+    runner.auto_mode = False
 
 
 app = FastAPI(
@@ -759,6 +795,7 @@ async def auto_start(interval: int = 3600):
         return {"status": "already_running"}
     runner.auto_mode = True
     runner.interval_sec = interval
+    _save_auto_state()
     _spawn(runner.auto_loop())
     return {"status": "started", "interval": interval}
 
@@ -766,6 +803,7 @@ async def auto_start(interval: int = 3600):
 @app.post("/api/auto/stop")
 async def auto_stop():
     runner.auto_mode = False
+    _save_auto_state()
     return {"status": "stopped"}
 
 
