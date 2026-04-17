@@ -1,5 +1,7 @@
 const API = '';
 let equityChart = null;
+let drawdownChart = null;
+let pnlChart = null;
 let refreshTimer = null;
 
 const esc = (s) => {
@@ -391,6 +393,98 @@ async function loadActivity() {
   });
 }
 
+async function loadAnalyticsView() {
+  const data = await fetchJson('/api/analytics');
+
+  const ddCtx = document.getElementById('drawdown-chart');
+  const ddLabels = data.drawdown.map(d => new Date(d.timestamp));
+  const ddValues = data.drawdown.map(d => d.drawdown);
+
+  if (drawdownChart) {
+    drawdownChart.data.labels = ddLabels;
+    drawdownChart.data.datasets[0].data = ddValues;
+    drawdownChart.update('none');
+  } else if (ddCtx) {
+    const grad = ddCtx.getContext('2d').createLinearGradient(0, 0, 0, 260);
+    grad.addColorStop(0, 'rgba(239, 68, 68, 0.5)');
+    grad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+    drawdownChart = new Chart(ddCtx, {
+      type: 'line',
+      data: { labels: ddLabels, datasets: [{ data: ddValues, borderColor: '#ef4444', backgroundColor: grad, borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { type: 'time', time: { unit: 'day' }, ticks: { color: '#8a94a6' }, grid: { color: 'rgba(42,52,82,0.3)' } },
+          y: { ticks: { color: '#8a94a6', callback: (v) => v + '%' }, grid: { color: 'rgba(42,52,82,0.3)' } },
+        },
+      },
+    });
+  }
+
+  const pnlCtx = document.getElementById('pnl-chart');
+  const labels = ['<-$500', '-$500..-$200', '-$200..0', '0..$200', '$200..$500', '>$500'];
+  const keys = ['<-500', '-500_to_-200', '-200_to_0', '0_to_200', '200_to_500', '>500'];
+  const values = keys.map(k => data.pnl_distribution[k] || 0);
+  const colors = values.map((_, i) => i < 3 ? '#ef4444' : '#10b981');
+
+  if (pnlChart) {
+    pnlChart.data.datasets[0].data = values;
+    pnlChart.update('none');
+  } else if (pnlCtx) {
+    pnlChart = new Chart(pnlCtx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: values, backgroundColor: colors, borderRadius: 6 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#8a94a6', font: { size: 10 } }, grid: { display: false } },
+          y: { ticks: { color: '#8a94a6', stepSize: 1 }, grid: { color: 'rgba(42,52,82,0.3)' } },
+        },
+      },
+    });
+  }
+
+  const tbody = document.getElementById('by-symbol-tbody');
+  tbody.replaceChildren();
+  const entries = Object.entries(data.by_symbol).sort((a, b) => b[1].pnl - a[1].pnl);
+
+  if (!entries.length) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 6;
+    td.className = 'empty-row';
+    td.textContent = 'Немає даних';
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+
+  entries.forEach(([sym, s]) => {
+    const tr = document.createElement('tr');
+    const winRate = s.trades ? (s.wins / s.trades * 100) : 0;
+    const plClass = s.pnl >= 0 ? 'pos' : 'neg';
+    const cells = [
+      { html: `<strong>${esc(sym)}</strong>` },
+      { text: String(s.trades), cls: 'num' },
+      { text: String(s.wins), cls: 'num pos' },
+      { text: String(s.losses), cls: 'num neg' },
+      { text: winRate.toFixed(1) + '%', cls: 'num' },
+      { text: fmt.plus(s.pnl), cls: `num ${plClass}` },
+    ];
+    cells.forEach(c => {
+      const td = document.createElement('td');
+      if (c.cls) td.className = c.cls;
+      if (c.html) td.innerHTML = c.html;
+      else td.textContent = c.text;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+
 async function loadStatus() {
   const s = await fetchJson('/api/status');
   setText('model-name', s.model);
@@ -436,6 +530,7 @@ function switchView(name) {
   if (name === 'analyses') loadAnalyses();
   if (name === 'market') loadMarket();
   if (name === 'activity') loadActivity();
+  if (name === 'analytics') loadAnalyticsView();
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {

@@ -158,7 +158,7 @@ async def stats():
 
 
 @app.get("/api/trades")
-async def trades(limit: int = 50):
+async def trades(limit: int = 500):
     import sqlite3
     with sqlite3.connect(paper_broker._db_path()) as conn:
         conn.row_factory = sqlite3.Row
@@ -167,6 +167,86 @@ async def trades(limit: int = 50):
             (limit,),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+@app.get("/api/trades/csv")
+async def trades_csv():
+    import sqlite3
+    import csv
+    import io as strio
+    from fastapi.responses import PlainTextResponse
+
+    with sqlite3.connect(paper_broker._db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM trades ORDER BY id ASC").fetchall()
+
+    buf = strio.StringIO()
+    if rows:
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        for r in rows:
+            writer.writerow(dict(r))
+
+    return PlainTextResponse(
+        buf.getvalue(),
+        headers={"Content-Disposition": "attachment; filename=trades.csv"},
+        media_type="text/csv",
+    )
+
+
+@app.get("/api/analytics")
+async def analytics():
+    import sqlite3
+
+    with sqlite3.connect(paper_broker._db_path()) as conn:
+        conn.row_factory = sqlite3.Row
+        trades = conn.execute("SELECT * FROM trades WHERE closed_at IS NOT NULL ORDER BY id ASC").fetchall()
+        equity = conn.execute("SELECT equity, timestamp FROM equity_curve ORDER BY id ASC").fetchall()
+
+    by_symbol: dict[str, dict] = {}
+    pnl_buckets: dict[str, int] = {
+        "<-500": 0, "-500_to_-200": 0, "-200_to_0": 0,
+        "0_to_200": 0, "200_to_500": 0, ">500": 0,
+    }
+
+    for t in trades:
+        sym = t["symbol"]
+        pnl = t["pnl"] or 0
+        if sym not in by_symbol:
+            by_symbol[sym] = {"trades": 0, "wins": 0, "losses": 0, "pnl": 0.0}
+        by_symbol[sym]["trades"] += 1
+        by_symbol[sym]["pnl"] += pnl
+        if pnl > 0:
+            by_symbol[sym]["wins"] += 1
+        elif pnl < 0:
+            by_symbol[sym]["losses"] += 1
+
+        if pnl < -500:
+            pnl_buckets["<-500"] += 1
+        elif pnl < -200:
+            pnl_buckets["-500_to_-200"] += 1
+        elif pnl < 0:
+            pnl_buckets["-200_to_0"] += 1
+        elif pnl < 200:
+            pnl_buckets["0_to_200"] += 1
+        elif pnl < 500:
+            pnl_buckets["200_to_500"] += 1
+        else:
+            pnl_buckets[">500"] += 1
+
+    drawdown = []
+    peak = 0.0
+    for row in equity:
+        v = row["equity"]
+        peak = max(peak, v)
+        dd_pct = (v - peak) / peak * 100 if peak else 0.0
+        drawdown.append({"timestamp": row["timestamp"], "drawdown": round(dd_pct, 2)})
+
+    return {
+        "by_symbol": {k: {**v, "pnl": round(v["pnl"], 2)} for k, v in by_symbol.items()},
+        "pnl_distribution": pnl_buckets,
+        "drawdown": drawdown,
+    }
 
 
 @app.get("/api/orders")
