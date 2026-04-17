@@ -31,3 +31,4 @@ cachetools>=5.5
 
 reportlab>=4.0
 matplotlib>=3.8
+scikit-learn>=1.5

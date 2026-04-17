@@ -407,6 +407,44 @@ async def tuning_history(limit: int = 10):
     return await asyncio.to_thread(get_tuning_history, limit)
 
 
+@app.post("/api/evolve")
+async def evolve():
+    from agents.python.genetic_evolver import evolve_generation
+
+    return await evolve_generation()
+
+
+@app.get("/api/evolved_strategies")
+async def evolved_strategies():
+    from agents.python.genetic_evolver import load_population
+
+    pop = await asyncio.to_thread(load_population)
+    return [
+        {"name": p.name, "fitness": p.fitness, "generation": p.generation, "backtest": p.backtest} for p in pop[:20]
+    ]
+
+
+@app.post("/api/forecaster/train/{symbol}")
+async def forecaster_train(symbol: str):
+    from agents.python.forecaster import train_forecaster
+
+    return await asyncio.to_thread(train_forecaster, symbol)
+
+
+@app.get("/api/forecaster/predict/{symbol}")
+async def forecaster_predict(symbol: str):
+    from agents.python.forecaster import predict_next_return
+
+    return await asyncio.to_thread(predict_next_return, symbol)
+
+
+@app.post("/api/forecaster/train_all")
+async def forecaster_train_all():
+    from agents.python.forecaster import train_all_watchlist
+
+    return await asyncio.to_thread(train_all_watchlist)
+
+
 @app.get("/api/pair_trading")
 async def pair_trading():
     from agents.python.pair_trading import get_best_pair_opportunities
