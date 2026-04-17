@@ -151,6 +151,38 @@ def _momentum_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
     )
 
 
+def _rs_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
+    if not state.symbols or len(state.symbols) < 4:
+        return None
+
+    try:
+        from agents.python.relative_strength import rank_for
+
+        rank = rank_for(symbol, state.symbols)
+    except Exception:
+        return None
+
+    if rank is None:
+        return None
+
+    if rank.percentile >= 0.7:
+        action = "buy"
+    elif rank.percentile <= 0.3:
+        action = "sell"
+    else:
+        return None
+
+    strength = abs(rank.percentile - 0.5) * 2.0
+    confidence = min(0.88, 0.6 + strength * 0.25)
+
+    return StrategyVote(
+        source="relative_strength",
+        action=action,
+        confidence=round(confidence, 3),
+        reasoning=f"rank={rank.rank}/{len(state.symbols)}, 20d_ret={rank.return_pct:+.2f}%",
+    )
+
+
 def _forecaster_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
     from agents.python.forecaster import _model_path, predict_next_return
 
@@ -216,7 +248,7 @@ def _rl_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
 
 def gather_votes(symbol: str, state: PipelineState) -> list[StrategyVote]:
     votes: list[StrategyVote] = []
-    for fn in (_llm_vote, _bb_vote, _momentum_vote, _rl_vote, _forecaster_vote):
+    for fn in (_llm_vote, _bb_vote, _momentum_vote, _rl_vote, _forecaster_vote, _rs_vote):
         try:
             v = fn(symbol, state)
         except Exception as e:
