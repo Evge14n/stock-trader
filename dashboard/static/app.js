@@ -961,7 +961,7 @@ async function loadStatus() {
 
   const autoBtn = document.getElementById('btn-auto');
   autoBtn.classList.toggle('active', s.auto_mode);
-  autoBtn.textContent = s.auto_mode ? '⏸ Стоп авто' : 'Авто-режим';
+  autoBtn.textContent = s.auto_mode ? '⏸ Пауза автотрейдингу' : '▶ Автотрейдинг';
 }
 
 async function refreshAll() {
@@ -1002,13 +1002,13 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => switchView(btn.dataset.view));
 });
 
-document.getElementById('btn-run').addEventListener('click', async () => {
-  await fetchJson('/api/run?dry_run=false', { method: 'POST' });
-  setTimeout(refreshAll, 1500);
-});
+function _dryRun() {
+  const el = document.getElementById('dry-run-toggle');
+  return el && el.checked;
+}
 
-document.getElementById('btn-run-dry').addEventListener('click', async () => {
-  await fetchJson('/api/run?dry_run=true', { method: 'POST' });
+document.getElementById('btn-run').addEventListener('click', async () => {
+  await fetchJson('/api/run?dry_run=' + (_dryRun() ? 'true' : 'false'), { method: 'POST' });
   setTimeout(refreshAll, 1500);
 });
 

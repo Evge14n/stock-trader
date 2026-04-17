@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Trader Dashboard</title>
-<link rel="stylesheet" href="/static/style.css?v=5">
+<link rel="stylesheet" href="/static/style.css?v=6">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
@@ -31,19 +31,23 @@
     </nav>
 
     <div class="controls">
-      <button id="btn-run" class="primary">▶ Запустити цикл</button>
-      <button id="btn-run-dry" class="secondary">Dry-run</button>
-      <div class="auto-controls">
-        <button id="btn-auto" class="tertiary">Авто-режим</button>
-        <select id="interval-select">
-          <option value="300">5 хв</option>
-          <option value="900">15 хв</option>
-          <option value="1800">30 хв</option>
-          <option value="3600" selected>1 год</option>
-          <option value="14400">4 год</option>
-        </select>
-      </div>
-      <button id="btn-reset" class="danger">Скинути рахунок</button>
+      <button id="btn-auto" class="primary big-toggle">▶ Автотрейдинг</button>
+      <select id="interval-select" title="Інтервал авторежиму">
+        <option value="300">5 хв</option>
+        <option value="900">15 хв</option>
+        <option value="1800">30 хв</option>
+        <option value="3600" selected>1 год</option>
+        <option value="14400">4 год</option>
+      </select>
+      <label class="checkbox-inline">
+        <input type="checkbox" id="dry-run-toggle"/>
+        <span>Dry-run (аналіз без угод)</span>
+      </label>
+      <details class="advanced">
+        <summary>Розширене</summary>
+        <button id="btn-run" class="secondary secondary-small">Один цикл</button>
+        <button id="btn-reset" class="danger danger-small">Скинути рахунок</button>
+      </details>
     </div>
 
     <div class="sidebar-footer">
@@ -337,6 +341,6 @@
   </main>
 </div>
 
-<script src="/static/app.js?v=6"></script>
+<script src="/static/app.js?v=7"></script>
 </body>
 </html>

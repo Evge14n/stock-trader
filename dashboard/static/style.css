@@ -80,10 +80,53 @@ body {
 
 .auto-controls { display: flex; gap: 6px; }
 .auto-controls button { flex: 1; }
-.auto-controls select {
+.auto-controls select,
+#interval-select {
   background: var(--bg-card); color: var(--text);
   border: 1px solid var(--border); border-radius: 8px;
-  padding: 0 10px; font-size: 12px;
+  padding: 8px 10px; font-size: 12px;
+}
+
+.big-toggle {
+  font-size: 15px !important;
+  padding: 14px 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+}
+.big-toggle.active {
+  background: var(--pos) !important;
+  animation: gentlePulse 2.5s ease-in-out infinite;
+}
+@keyframes gentlePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.35); }
+  50% { box-shadow: 0 0 0 6px rgba(74, 222, 128, 0); }
+}
+
+.checkbox-inline {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-muted);
+  padding: 6px 2px; cursor: pointer;
+}
+.checkbox-inline input { cursor: pointer; }
+
+.advanced {
+  margin-top: 8px;
+  border-top: 1px dashed var(--border);
+  padding-top: 8px;
+}
+.advanced summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 4px 2px;
+  list-style: none;
+}
+.advanced summary::before { content: "▸ "; }
+.advanced[open] summary::before { content: "▾ "; }
+.advanced[open] { display: flex; flex-direction: column; gap: 6px; }
+.secondary-small, .danger-small {
+  padding: 8px 12px !important;
+  font-size: 12px !important;
 }
 
 .sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
