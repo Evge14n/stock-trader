@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     use_smart_picker: bool = True
     smart_min_confidence: float = 0.65
     smart_min_voters: int = 2
+    max_consecutive_losses: int = 3
+    loss_cooldown_hours: int = 24
 
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 

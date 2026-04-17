@@ -574,11 +574,12 @@ async def rl_status():
 
 @app.get("/api/circuit_breaker")
 async def circuit_breaker_status():
-    from agents.python.circuit_breaker import check_drawdown, is_trading_hours
+    from agents.python.circuit_breaker import check_drawdown, check_loss_streak, is_trading_hours
 
     return {
         "drawdown": check_drawdown(),
         "trading_hours": is_trading_hours(),
+        "loss_streak": check_loss_streak(settings.max_consecutive_losses, settings.loss_cooldown_hours),
     }
 
 

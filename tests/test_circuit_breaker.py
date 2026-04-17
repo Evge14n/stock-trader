@@ -1,7 +1,12 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from agents.python import paper_broker
-from agents.python.circuit_breaker import check_drawdown, is_trading_hours, should_block_trading
+from agents.python.circuit_breaker import (
+    check_drawdown,
+    check_loss_streak,
+    is_trading_hours,
+    should_block_trading,
+)
 
 
 def _seed_equity(points: list[float]):
@@ -68,3 +73,59 @@ def test_should_block_trading_drawdown():
     blocked, reason = should_block_trading(max_drawdown_pct=10.0)
     assert blocked is True
     assert "circuit_breaker" in reason
+
+
+def _seed_trades(pnls: list[tuple[float, int]]):
+    import sqlite3
+
+    with sqlite3.connect(paper_broker._db_path()) as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, side TEXT NOT NULL, qty INTEGER NOT NULL, entry_price REAL NOT NULL, exit_price REAL, pnl REAL, pnl_pct REAL, opened_at TEXT NOT NULL, closed_at TEXT, close_reason TEXT);
+        """)
+        for pnl, age_hours in pnls:
+            ts = (datetime.now() - timedelta(hours=age_hours)).isoformat()
+            conn.execute(
+                "INSERT INTO trades (symbol, side, qty, entry_price, pnl, opened_at, closed_at, close_reason) "
+                "VALUES (?, 'long', 1, 100.0, ?, ?, ?, 'stop_loss')",
+                ("X", pnl, ts, ts),
+            )
+        conn.commit()
+
+
+def test_loss_streak_empty_returns_not_tripped():
+    result = check_loss_streak()
+    assert result["tripped"] is False
+    assert result["streak"] == 0
+
+
+def test_loss_streak_counts_from_tail():
+    _seed_trades([(50, 10), (-20, 5), (-15, 3), (-30, 1)])
+    result = check_loss_streak(max_consecutive=3, cooldown_hours=24)
+    assert result["streak"] == 3
+    assert result["tripped"] is True
+
+
+def test_loss_streak_resets_on_win():
+    _seed_trades([(-50, 10), (-20, 5), (30, 3), (-10, 1)])
+    result = check_loss_streak(max_consecutive=3, cooldown_hours=24)
+    assert result["streak"] == 1
+    assert result["tripped"] is False
+
+
+def test_loss_streak_cooldown_expires():
+    _seed_trades([(-20, 48), (-30, 36), (-15, 30)])
+    result = check_loss_streak(max_consecutive=3, cooldown_hours=24)
+    assert result["streak"] == 3
+    assert result["tripped"] is False
+
+
+def test_should_block_trading_loss_streak(monkeypatch):
+    from config.settings import settings
+
+    monkeypatch.setattr(settings, "max_consecutive_losses", 3)
+    monkeypatch.setattr(settings, "loss_cooldown_hours", 24)
+    _seed_equity([100_000, 100_500])
+    _seed_trades([(-20, 5), (-15, 3), (-10, 1)])
+    blocked, reason = should_block_trading(max_drawdown_pct=50.0)
+    assert blocked is True
+    assert "consecutive losses" in reason

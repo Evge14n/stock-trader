@@ -49,9 +49,63 @@ def is_trading_hours() -> dict:
     }
 
 
+def check_loss_streak(max_consecutive: int = 3, cooldown_hours: int = 24) -> dict:
+    import sqlite3
+
+    try:
+        with sqlite3.connect(paper_broker._db_path()) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT pnl, closed_at FROM trades WHERE pnl IS NOT NULL AND closed_at IS NOT NULL "
+                "ORDER BY closed_at DESC LIMIT ?",
+                (max_consecutive + 10,),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+
+    if not rows:
+        return {"tripped": False, "streak": 0, "cooldown_active": False, "last_loss_at": None}
+
+    streak = 0
+    last_loss_ts = None
+    for r in rows:
+        if r["pnl"] < 0:
+            streak += 1
+            if last_loss_ts is None:
+                last_loss_ts = r["closed_at"]
+        else:
+            break
+
+    cooldown_active = False
+    if streak >= max_consecutive and last_loss_ts:
+        try:
+            last_dt = datetime.fromisoformat(last_loss_ts)
+            age_hours = (datetime.now() - last_dt).total_seconds() / 3600
+            cooldown_active = age_hours < cooldown_hours
+        except ValueError:
+            cooldown_active = True
+
+    return {
+        "tripped": cooldown_active,
+        "streak": streak,
+        "max_consecutive": max_consecutive,
+        "cooldown_active": cooldown_active,
+        "cooldown_hours": cooldown_hours,
+        "last_loss_at": last_loss_ts,
+    }
+
+
 def should_block_trading(max_drawdown_pct: float = 10.0) -> tuple[bool, str]:
     dd = check_drawdown(threshold_pct=max_drawdown_pct)
     if dd["tripped"]:
         return True, f"circuit_breaker: drawdown {dd['current_dd_pct']}% exceeds {max_drawdown_pct}%"
+
+    from config.settings import settings
+
+    streak = check_loss_streak(settings.max_consecutive_losses, settings.loss_cooldown_hours)
+    if streak["tripped"]:
+        return True, (
+            f"circuit_breaker: {streak['streak']} consecutive losses, cooldown active for {streak['cooldown_hours']}h"
+        )
 
     return False, "ok"
