@@ -55,6 +55,56 @@ async def check_dependencies(dry_run: bool = False) -> bool:
         broker_ok = False
     checks.append(("Paper Broker (local)", broker_ok, True))
 
+    try:
+        from agents.python.data_collector import fetch_candles
+
+        sample = fetch_candles("AAPL", period="5d")
+        yf_ok = len(sample) >= 1
+    except Exception:
+        yf_ok = False
+    checks.append(("Yahoo Finance", yf_ok, True))
+
+    try:
+        from core import smart_picker
+
+        voters_ok = all(
+            callable(getattr(smart_picker, name, None))
+            for name in ("_llm_vote", "_bb_vote", "_momentum_vote", "_rl_vote", "_forecaster_vote", "_rs_vote")
+        )
+    except Exception:
+        voters_ok = False
+    checks.append(("Smart Picker (6 voters)", voters_ok, True))
+
+    try:
+        from agents.python.voter_stats import get_all_stats
+
+        get_all_stats()
+        voter_db_ok = True
+    except Exception:
+        voter_db_ok = False
+    checks.append(("Voter Stats DB", voter_db_ok, True))
+
+    try:
+        from agents.python.circuit_breaker import check_drawdown
+
+        check_drawdown()
+        cb_ok = True
+    except Exception:
+        cb_ok = False
+    checks.append(("Circuit Breaker", cb_ok, True))
+
+    try:
+        from agents.python.market_regime import detect
+
+        regime = detect(settings.symbols[:3])
+        regime_ok = regime.label != ""
+    except Exception:
+        regime_ok = False
+    checks.append(("Market Regime", regime_ok, False))
+
+    tg_ok = bool(settings.telegram_bot_token and settings.telegram_chat_id)
+    checks.append(("Telegram (optional)", tg_ok, False))
+
     table = Table(title="System Check", box=box.SIMPLE)
     table.add_column("Component", style="cyan")
     table.add_column("Status")
