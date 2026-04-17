@@ -539,6 +539,24 @@ async def trigger_daily_report():
     return {"sent": ok}
 
 
+@app.get("/api/market_regime")
+async def market_regime_api():
+    from agents.python.market_regime import detect
+
+    regime = detect(settings.symbols)
+    return {
+        "label": regime.label,
+        "breadth_pct": regime.breadth_pct,
+        "above_50ma": regime.above_50ma,
+        "total": regime.total,
+        "vix": regime.vix,
+        "macro_regime": regime.macro_regime,
+        "buy_mult": regime.buy_mult,
+        "sell_mult": regime.sell_mult,
+        "notes": regime.notes,
+    }
+
+
 @app.get("/api/voter_stats")
 async def voter_stats():
     from agents.python.voter_stats import get_all_stats, get_weight

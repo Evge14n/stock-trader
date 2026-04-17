@@ -263,6 +263,13 @@ def gather_votes(symbol: str, state: PipelineState) -> list[StrategyVote]:
         votes = apply_weights_to_votes(votes)
     except Exception as e:
         log.warning("voter_weight_apply_failed", error=str(e))
+
+    try:
+        from agents.python.market_regime import apply_regime_to_votes
+
+        votes = apply_regime_to_votes(votes, state.symbols)
+    except Exception as e:
+        log.warning("regime_apply_failed", error=str(e))
     return votes
 
 
