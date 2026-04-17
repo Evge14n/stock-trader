@@ -125,6 +125,29 @@ def test_llm_vote_passes_with_high_confidence(monkeypatch):
     assert any(v.source == "llm_research" and v.action == "buy" for v in votes)
 
 
+def test_size_multiplier_scales_with_confluence():
+    base = StrategyVote(source="x", action="buy", confidence=0.8, confluence_voters=2, confluence_total=2)
+    assert base.size_multiplier() == 0.85
+
+    strong = StrategyVote(source="x", action="buy", confidence=0.8, confluence_voters=4, confluence_total=4)
+    assert strong.size_multiplier() == 1.3
+
+    three_of_four = StrategyVote(source="x", action="buy", confidence=0.8, confluence_voters=3, confluence_total=4)
+    assert three_of_four.size_multiplier() == 1.15
+
+
+def test_pick_best_populates_confluence_fields():
+    votes = [
+        StrategyVote(source="a", action="buy", confidence=0.8),
+        StrategyVote(source="b", action="buy", confidence=0.75),
+        StrategyVote(source="c", action="buy", confidence=0.82),
+    ]
+    result = pick_best(votes)
+    assert result is not None
+    assert result.confluence_voters == 3
+    assert result.confluence_total == 3
+
+
 def test_smart_decide_records_audit_entry():
     state = PipelineState(symbols=["A"])
     candles = _candles(n=90, slope=0.5)

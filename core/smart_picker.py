@@ -23,6 +23,8 @@ class StrategyVote:
     action: str
     confidence: float
     reasoning: str = ""
+    confluence_voters: int = 1
+    confluence_total: int = 1
 
     def as_dict(self) -> dict:
         return {
@@ -30,7 +32,21 @@ class StrategyVote:
             "action": self.action,
             "confidence": round(self.confidence, 3),
             "reasoning": self.reasoning,
+            "confluence_voters": self.confluence_voters,
+            "confluence_total": self.confluence_total,
         }
+
+    def size_multiplier(self) -> float:
+        if self.confluence_total <= 0:
+            return 1.0
+        ratio = self.confluence_voters / self.confluence_total
+        if self.confluence_voters >= 4:
+            return 1.3
+        if self.confluence_voters == 3 and ratio >= 0.75:
+            return 1.15
+        if self.confluence_voters == 2:
+            return 0.85
+        return 1.0
 
 
 def _llm_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
@@ -189,6 +205,8 @@ def pick_best(votes: list[StrategyVote]) -> StrategyVote | None:
             action="buy",
             confidence=round(avg_conf, 3),
             reasoning="; ".join(f"{v.source}:{v.confidence:.2f}" for v in buys),
+            confluence_voters=len(buys),
+            confluence_total=len(filtered),
         )
 
     if len(sells) >= settings.smart_min_voters and len(sells) > len(buys):
@@ -199,6 +217,8 @@ def pick_best(votes: list[StrategyVote]) -> StrategyVote | None:
             action="sell",
             confidence=round(avg_conf, 3),
             reasoning="; ".join(f"{v.source}:{v.confidence:.2f}" for v in sells),
+            confluence_voters=len(sells),
+            confluence_total=len(filtered),
         )
 
     return None
@@ -221,12 +241,13 @@ def _to_trade_signal(symbol: str, vote: StrategyVote, state: PipelineState) -> T
         stop_pct = 0.03
         tp_pct = 0.06
 
-    risk_amount = settings.max_position_size * settings.risk_per_trade
+    size_mult = vote.size_multiplier()
+    risk_amount = settings.max_position_size * settings.risk_per_trade * size_mult
     risk_per_share = md.price * stop_pct
     if risk_per_share <= 0:
         return None
     qty = int(risk_amount / risk_per_share)
-    max_shares = int(settings.max_position_size / md.price)
+    max_shares = int(settings.max_position_size * size_mult / md.price)
     qty = min(qty, max_shares)
     if qty <= 0:
         return None
@@ -246,7 +267,7 @@ def _to_trade_signal(symbol: str, vote: StrategyVote, state: PipelineState) -> T
         stop_loss=sl,
         take_profit=tp,
         confidence=vote.confidence,
-        reasoning=f"[{vote.source}] {vote.reasoning[:250]}",
+        reasoning=f"[{vote.source}] size×{size_mult:.2f} {vote.reasoning[:230]}",
     )
 
 
