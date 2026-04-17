@@ -1040,5 +1040,77 @@ if (btnMC) btnMC.addEventListener('click', loadMonteCarlo);
 const btnExport = document.getElementById('btn-export-dataset');
 if (btnExport) btnExport.addEventListener('click', exportDataset);
 
+const btnRL = document.getElementById('btn-refresh-rl');
+if (btnRL) btnRL.addEventListener('click', loadRLStatus);
+
+function _rlRow(label, value, valueColor) {
+  const row = document.createElement('div');
+  row.className = 'regime-detail';
+  const l = document.createElement('span');
+  l.textContent = label + ': ';
+  const v = document.createElement('strong');
+  v.textContent = value;
+  if (valueColor) v.style.color = valueColor;
+  row.appendChild(l);
+  row.appendChild(v);
+  return row;
+}
+
+async function loadRLStatus() {
+  const el = document.getElementById('rl-content');
+  if (!el) return;
+  el.replaceChildren();
+
+  const loading = document.createElement('div');
+  loading.className = 'muted';
+  loading.style.padding = '12px';
+  loading.textContent = 'Завантаження...';
+  el.appendChild(loading);
+
+  try {
+    const d = await fetchJson('/api/rl');
+    el.replaceChildren();
+
+    el.appendChild(_rlRow('Статус', d.model_available ? 'модель завантажена' : 'модель відсутня', d.model_available ? '#4ade80' : '#f87171'));
+    el.appendChild(_rlRow('USE_RL_DECISION', d.enabled ? 'ON' : 'OFF', d.enabled ? '#4ade80' : '#9ca3af'));
+    el.appendChild(_rlRow('Залежності', d.deps_installed ? 'встановлені' : 'відсутні'));
+
+    if (d.model_available) {
+      el.appendChild(_rlRow('Розмір чекпоінта', d.model_size_mb + ' MB'));
+    }
+
+    if (d.meta) {
+      const meta = d.meta;
+      el.appendChild(_rlRow('Тренована', meta.timestamp || '—'));
+      el.appendChild(_rlRow('Символи', (meta.symbols || []).join(', ') || '—'));
+      if (meta.config) {
+        el.appendChild(_rlRow('Timesteps', (meta.config.total_timesteps || 0).toLocaleString('en-US')));
+        el.appendChild(_rlRow('Period', meta.config.period || '—'));
+        el.appendChild(_rlRow('Device', meta.device || '—'));
+      }
+    }
+
+    if (!d.deps_installed) {
+      const hint = document.createElement('div');
+      hint.className = 'muted';
+      hint.style.padding = '10px 0 0 0';
+      hint.textContent = 'pip install -r requirements-rl.txt';
+      el.appendChild(hint);
+    } else if (!d.model_available) {
+      const hint = document.createElement('div');
+      hint.className = 'muted';
+      hint.style.padding = '10px 0 0 0';
+      hint.textContent = 'python main.py rl-train --timesteps 200000 --period 2y';
+      el.appendChild(hint);
+    }
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка завантаження';
+    el.appendChild(err);
+  }
+}
+
 refreshAll();
 refreshTimer = setInterval(refreshAll, 5000);

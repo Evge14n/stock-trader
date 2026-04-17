@@ -539,6 +539,39 @@ async def trigger_daily_report():
     return {"sent": ok}
 
 
+@app.get("/api/rl")
+async def rl_status():
+    import json
+
+    rl_dir = settings.data_dir / "rl"
+    model_path = rl_dir / "ppo_latest.zip"
+    meta_path = rl_dir / "ppo_latest.json"
+
+    payload: dict = {
+        "enabled": settings.use_rl_decision,
+        "model_available": model_path.exists(),
+        "model_path": str(model_path) if model_path.exists() else None,
+        "model_size_mb": round(model_path.stat().st_size / (1024 * 1024), 2) if model_path.exists() else 0,
+        "meta": None,
+        "deps_installed": False,
+    }
+
+    try:
+        import stable_baselines3  # noqa: F401
+
+        payload["deps_installed"] = True
+    except ImportError:
+        pass
+
+    if meta_path.exists():
+        try:
+            payload["meta"] = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            payload["meta"] = None
+
+    return payload
+
+
 @app.get("/api/circuit_breaker")
 async def circuit_breaker_status():
     from agents.python.circuit_breaker import check_drawdown, is_trading_hours
