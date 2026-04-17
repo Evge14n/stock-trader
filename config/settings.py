@@ -3,9 +3,12 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+_PROJECT_ROOT = Path(__file__).parent.parent
+_ENV_FILE = _PROJECT_ROOT / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": str(_ENV_FILE), "env_file_encoding": "utf-8"}
 
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""

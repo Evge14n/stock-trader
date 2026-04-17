@@ -13,7 +13,6 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from agents.python import paper_broker
-from agents.python.data_collector import fetch_quote
 from config.settings import settings
 from dashboard.auth import verify_auth
 
@@ -121,18 +120,32 @@ async def index():
     return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
 
+def _yf_price(sym: str) -> float | None:
+    import yfinance as yf
+
+    try:
+        hist = yf.Ticker(sym).history(period="1d", interval="1m")
+        if not hist.empty:
+            return float(hist["Close"].iloc[-1])
+        daily = yf.Ticker(sym).history(period="5d")
+        if not daily.empty:
+            return float(daily["Close"].iloc[-1])
+    except Exception:
+        return None
+    return None
+
+
 @app.get("/api/portfolio")
 async def portfolio():
     positions = paper_broker.list_positions()
     symbols = [p["symbol"] for p in positions]
     prices = {}
 
-    for sym in symbols:
-        try:
-            q = await asyncio.to_thread(fetch_quote, sym)
-            prices[sym] = q["price"]
-        except Exception:
-            pass
+    if symbols:
+        results = await asyncio.gather(*[asyncio.to_thread(_yf_price, sym) for sym in symbols])
+        for sym, price in zip(symbols, results, strict=False):
+            if price is not None:
+                prices[sym] = price
 
     positions_live = paper_broker.list_positions(prices)
     account = paper_broker.get_account()

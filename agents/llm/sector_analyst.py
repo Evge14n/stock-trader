@@ -10,7 +10,10 @@ SECTORS = {
     "finance": ["JPM", "BAC", "GS", "MS", "V", "MA", "BRK.B", "C", "WFC", "AXP"],
     "healthcare": ["JNJ", "UNH", "PFE", "ABBV", "MRK", "LLY", "TMO", "ABT", "BMY", "AMGN"],
     "energy": ["XOM", "CVX", "COP", "SLB", "EOG", "MPC", "PSX", "VLO", "OXY", "HAL"],
-    "consumer": ["AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "TGT", "COST", "WMT", "PG"],
+    "consumer_discretionary": ["AMZN", "TSLA", "HD", "MCD", "NKE", "SBUX", "TGT", "DIS"],
+    "consumer_staples": ["KO", "PEP", "PG", "WMT", "COST", "CL", "MDLZ"],
+    "commodities": ["GLD", "SLV", "USO", "UNG", "DBC", "IAU", "GDX"],
+    "crypto": ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD", "DOGE-USD"],
 }
 
 SYSTEM = """You are a sector analyst. Analyze how the given stock fits within its sector context.
