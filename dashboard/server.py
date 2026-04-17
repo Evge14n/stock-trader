@@ -407,6 +407,48 @@ async def tuning_history(limit: int = 10):
     return await asyncio.to_thread(get_tuning_history, limit)
 
 
+@app.get("/api/pair_trading")
+async def pair_trading():
+    from agents.python.pair_trading import get_best_pair_opportunities
+
+    return await asyncio.to_thread(get_best_pair_opportunities, settings.symbols, "6mo", 10)
+
+
+@app.get("/api/volume_profile/{symbol}")
+async def volume_profile(symbol: str):
+    from agents.python.data_collector import fetch_candles
+    from agents.python.volume_profile import analyze_symbol
+
+    candles = await asyncio.to_thread(fetch_candles, symbol, "3mo")
+    if not candles:
+        return {"error": "no candles"}
+    return await asyncio.to_thread(analyze_symbol, symbol, candles)
+
+
+@app.get("/api/weights")
+async def ensemble_weights():
+    from agents.python.ensemble_weights import load_weights
+
+    return await asyncio.to_thread(load_weights)
+
+
+@app.post("/api/weights/recompute")
+async def recompute_weights():
+    from agents.python.ensemble_weights import recompute_weights as _recompute
+
+    return await asyncio.to_thread(_recompute, [])
+
+
+@app.post("/api/pdf_report")
+async def generate_pdf_report():
+    from fastapi.responses import FileResponse
+
+    from agents.python.pdf_report import generate_report
+
+    path = await asyncio.to_thread(generate_report)
+    return FileResponse(str(path), media_type="application/pdf", filename=path.name)
+
+
 @app.post("/api/generate_strategy")
 async def generate_strategy():
     from agents.python.strategy_generator import generate_and_backtest, save_strategy
