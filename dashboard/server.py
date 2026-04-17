@@ -393,6 +393,43 @@ async def macro():
     return await asyncio.to_thread(get_macro_summary)
 
 
+@app.post("/api/tune")
+async def run_auto_tuning():
+    from agents.python.self_tuner import run_tuning_cycle
+
+    return await asyncio.to_thread(run_tuning_cycle, True)
+
+
+@app.get("/api/tune/history")
+async def tuning_history(limit: int = 10):
+    from agents.python.self_tuner import get_tuning_history
+
+    return await asyncio.to_thread(get_tuning_history, limit)
+
+
+@app.post("/api/generate_strategy")
+async def generate_strategy():
+    from agents.python.strategy_generator import generate_and_backtest, save_strategy
+
+    result = await generate_and_backtest()
+    if result.valid and result.backtest_summary.get("total_trades", 0) > 0:
+        save_strategy(result)
+    return {
+        "valid": result.valid,
+        "name": result.name,
+        "code": result.code,
+        "error": result.error,
+        "backtest": result.backtest_summary,
+    }
+
+
+@app.get("/api/generated_strategies")
+async def list_generated():
+    from agents.python.strategy_generator import load_saved_strategies
+
+    return await asyncio.to_thread(load_saved_strategies)
+
+
 @app.post("/api/daily_report")
 async def trigger_daily_report():
     from agents.python.daily_report import send_daily_report

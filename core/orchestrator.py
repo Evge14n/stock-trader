@@ -5,6 +5,7 @@ from typing import Any
 
 from langgraph.graph import END, StateGraph
 
+from agents.llm.debate import analyze as debate_analyze
 from agents.llm.fundamental_analyst import analyze as fundamental_analyze
 from agents.llm.momentum_analyst import analyze as momentum_analyze
 from agents.llm.news_analyst import analyze as news_analyze
@@ -166,6 +167,7 @@ def build_graph() -> StateGraph:
     graph.add_node("fundamental_analysis", _wrap(fundamental_analyze, "fundamental_analysis"))
     graph.add_node("momentum_analysis", _wrap(momentum_analyze, "momentum_analysis"))
     graph.add_node("volatility_analysis", _wrap(volatility_analyze, "volatility_analysis"))
+    graph.add_node("debate", _wrap(debate_analyze, "debate"))
     graph.add_node("research", _wrap(synthesize, "research"))
     graph.add_node("trade_decision", _wrap(decide, "trade_decision"))
     graph.add_node("risk_check", _wrap(validate, "risk_check"))
@@ -183,7 +185,8 @@ def build_graph() -> StateGraph:
     graph.add_edge("sector_analysis", "fundamental_analysis")
     graph.add_edge("fundamental_analysis", "momentum_analysis")
     graph.add_edge("momentum_analysis", "volatility_analysis")
-    graph.add_edge("volatility_analysis", "research")
+    graph.add_edge("volatility_analysis", "debate")
+    graph.add_edge("debate", "research")
     graph.add_edge("research", "trade_decision")
 
     graph.add_conditional_edges(
