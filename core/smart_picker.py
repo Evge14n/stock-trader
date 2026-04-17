@@ -151,6 +151,44 @@ def _momentum_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
     )
 
 
+def _forecaster_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
+    from agents.python.forecaster import _model_path, predict_next_return
+
+    if not _model_path(symbol).exists():
+        return None
+
+    md = state.market_data.get(symbol)
+    if not md or md.price <= 0:
+        return None
+
+    try:
+        pred = predict_next_return(symbol)
+    except Exception:
+        return None
+
+    if "error" in pred:
+        return None
+
+    pred_pct = pred.get("predicted_return_pct", 0.0)
+    if abs(pred_pct) < 1.0:
+        return None
+
+    action = "buy" if pred_pct > 0 else "sell"
+    dir_accuracy = pred.get("model_accuracy", 0.0)
+    if dir_accuracy < 0.5:
+        return None
+
+    magnitude = min(abs(pred_pct) / 3.0, 0.3)
+    confidence = min(0.9, dir_accuracy + magnitude)
+
+    return StrategyVote(
+        source="forecaster_mlp",
+        action=action,
+        confidence=round(confidence, 3),
+        reasoning=f"pred={pred_pct:+.2f}%, dir_acc={dir_accuracy:.1f}%",
+    )
+
+
 def _rl_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
     try:
         from agents.python.rl import agent as rl_agent
@@ -178,7 +216,7 @@ def _rl_vote(symbol: str, state: PipelineState) -> StrategyVote | None:
 
 def gather_votes(symbol: str, state: PipelineState) -> list[StrategyVote]:
     votes: list[StrategyVote] = []
-    for fn in (_llm_vote, _bb_vote, _momentum_vote, _rl_vote):
+    for fn in (_llm_vote, _bb_vote, _momentum_vote, _rl_vote, _forecaster_vote):
         try:
             v = fn(symbol, state)
         except Exception as e:
