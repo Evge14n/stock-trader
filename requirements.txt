@@ -8,6 +8,7 @@ alpaca-py>=0.35
 
 # Data
 finnhub-python>=2.4.27
+yfinance>=0.2
 pandas>=2.2
 numpy>=2.0
 ta>=0.11.0
