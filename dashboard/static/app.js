@@ -995,7 +995,7 @@ function switchView(name) {
   if (name === 'market') loadMarket();
   if (name === 'activity') loadActivity();
   if (name === 'analytics') { loadAnalyticsView(); loadRollingMetrics(); }
-  if (name === 'intelligence') { loadExplain(); loadVoting(); }
+  if (name === 'intelligence') { loadExplain(); loadVoting(); loadVoterPerf(); }
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1042,6 +1042,79 @@ if (btnExport) btnExport.addEventListener('click', exportDataset);
 
 const btnRL = document.getElementById('btn-refresh-rl');
 if (btnRL) btnRL.addEventListener('click', loadRLStatus);
+
+async function loadVoterPerf() {
+  const el = document.getElementById('voter-perf-content');
+  if (!el) return;
+  el.replaceChildren();
+
+  try {
+    const data = await fetchJson('/api/voter_stats');
+    const voters = data.voters || [];
+    if (!voters.length) {
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.style.padding = '20px';
+      empty.style.textAlign = 'center';
+      empty.textContent = 'Потрібна історія угод (мін. 5 на voter)';
+      el.appendChild(empty);
+      return;
+    }
+
+    const container = document.createElement('div');
+    container.className = 'voter-perf-list';
+
+    for (const v of voters) {
+      const row = document.createElement('div');
+      row.className = 'voter-perf-row';
+
+      const header = document.createElement('div');
+      header.className = 'voter-perf-header';
+      const name = document.createElement('strong');
+      name.textContent = v.voter;
+      const stats = document.createElement('span');
+      stats.className = 'muted';
+      stats.style.fontSize = '12px';
+      stats.textContent = ` ${v.wins}W / ${v.losses}L (n=${v.total})`;
+      header.appendChild(name);
+      header.appendChild(stats);
+      row.appendChild(header);
+
+      const barWrap = document.createElement('div');
+      barWrap.className = 'voter-bar';
+      const fill = document.createElement('div');
+      fill.className = 'voter-bar-fill';
+      fill.style.width = Math.min(100, v.win_rate) + '%';
+      fill.style.background = v.win_rate >= 60 ? '#4ade80' : v.win_rate >= 50 ? '#facc15' : '#f87171';
+      barWrap.appendChild(fill);
+      row.appendChild(barWrap);
+
+      const footer = document.createElement('div');
+      footer.className = 'voter-perf-footer';
+      const wrText = document.createElement('span');
+      wrText.textContent = `WR ${v.win_rate.toFixed(1)}%`;
+      const weightText = document.createElement('span');
+      weightText.textContent = `× ${v.weight.toFixed(2)}`;
+      weightText.style.color = v.weight > 1 ? '#4ade80' : v.weight < 1 ? '#f87171' : 'inherit';
+      const pnlText = document.createElement('span');
+      pnlText.textContent = `$${v.total_pnl.toFixed(2)}`;
+      pnlText.style.color = v.total_pnl >= 0 ? '#4ade80' : '#f87171';
+      footer.appendChild(wrText);
+      footer.appendChild(weightText);
+      footer.appendChild(pnlText);
+      row.appendChild(footer);
+
+      container.appendChild(row);
+    }
+    el.appendChild(container);
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка завантаження';
+    el.appendChild(err);
+  }
+}
 
 async function loadRollingMetrics() {
   const el = document.getElementById('rolling-metrics');

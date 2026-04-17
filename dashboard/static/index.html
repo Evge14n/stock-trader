@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Trader Dashboard</title>
-<link rel="stylesheet" href="/static/style.css?v=7">
+<link rel="stylesheet" href="/static/style.css?v=8">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
@@ -318,6 +318,16 @@
 
       <div class="card">
         <div class="card-header">
+          <h3>🏆 Продуктивність voters</h3>
+          <span class="muted">Win rate і вага кожної стратегії</span>
+        </div>
+        <div id="voter-perf-content">
+          <div class="muted" style="padding:20px;text-align:center;">Потрібна історія угод (мін. 5 на voter)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h3>🗳️ Голосування стратегій</h3>
           <span class="muted">Хто що пропонує для останнього циклу</span>
         </div>
@@ -359,6 +369,6 @@
   </main>
 </div>
 
-<script src="/static/app.js?v=9"></script>
+<script src="/static/app.js?v=10"></script>
 </body>
 </html>
