@@ -99,13 +99,22 @@ async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
     if not md or md.price <= 0:
         return None
 
-    stop_pct = 0.03
-    tp_pct = 0.06
-    for pct in [0.02, 0.03, 0.04, 0.05]:
-        if str(pct) in response:
-            stop_pct = pct
-            tp_pct = pct * 2
-            break
+    indicators = state.indicators.get(symbol, [])
+    atr_ind = next((i for i in indicators if i.name == "ATR"), None)
+    atr_value = atr_ind.value if atr_ind else 0
+
+    if atr_value > 0:
+        atr_pct = atr_value / md.price
+        stop_pct = max(0.015, min(0.05, atr_pct * 1.5))
+        tp_pct = max(0.03, min(0.12, atr_pct * 3.0))
+    else:
+        stop_pct = 0.03
+        tp_pct = 0.06
+        for pct in [0.02, 0.03, 0.04, 0.05]:
+            if str(pct) in response:
+                stop_pct = pct
+                tp_pct = pct * 2
+                break
 
     qty = _calc_quantity(md.price, stop_pct, researcher.confidence)
     if qty <= 0:

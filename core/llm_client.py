@@ -40,19 +40,30 @@ async def query(
     }
 
     async with _semaphore:
-        try:
-            async with httpx.AsyncClient(timeout=180.0) as client:
-                resp = await client.post(
-                    f"{settings.ollama_base_url}/api/chat",
-                    content=orjson.dumps(payload),
-                )
-                resp.raise_for_status()
-                result = orjson.loads(resp.content)
-                text = result.get("message", {}).get("content", "").strip()
-                _cache[cache_key] = text
-                return text
-        except Exception as e:
-            return f"[LLM_ERROR] {e}"
+        last_error = ""
+        for attempt in range(3):
+            try:
+                if attempt > 0:
+                    await asyncio.sleep(2**attempt)
+
+                async with httpx.AsyncClient(timeout=180.0) as client:
+                    resp = await client.post(
+                        f"{settings.ollama_base_url}/api/chat",
+                        content=orjson.dumps(payload),
+                    )
+                    resp.raise_for_status()
+                    result = orjson.loads(resp.content)
+                    text = result.get("message", {}).get("content", "").strip()
+
+                    if text:
+                        _cache[cache_key] = text
+                        return text
+
+                    last_error = "empty response"
+            except Exception as e:
+                last_error = f"{type(e).__name__}: {e}"
+
+        return f"[LLM_ERROR after 3 retries] {last_error}"
 
 
 async def query_many(

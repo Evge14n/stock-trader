@@ -48,6 +48,44 @@ def submit_order(
     )
 
 
+def _find_researcher_signal(symbol: str, state: PipelineState) -> tuple[str, float] | None:
+    analyses = state.analyses.get(symbol, [])
+    for a in reversed(analyses):
+        if a.agent == "researcher":
+            return a.signal, a.confidence
+    return None
+
+
+async def _close_on_signal_reversal(state: PipelineState, current_prices: dict[str, float]) -> list[dict]:
+    closed = []
+    held = paper_broker.list_positions()
+
+    for pos in held:
+        sym = pos["symbol"]
+        signal_info = _find_researcher_signal(sym, state)
+        if not signal_info:
+            continue
+
+        signal, confidence = signal_info
+        bearish = signal in ("sell", "strong_sell", "bearish")
+        if bearish and confidence >= 0.6:
+            price = current_prices.get(sym, pos["avg_entry"])
+            result = paper_broker.submit_order(sym, pos["qty"], "sell", price)
+            result["close_reason"] = "signal_reversal"
+            result["trigger"] = "auto_close"
+            closed.append(result)
+
+            if result.get("status") == "filled":
+                await notifier.send_telegram(
+                    f"🔄 *Exit on reversal: {sym}*\n\n"
+                    f"Qty: `{pos['qty']}`\n"
+                    f"Price: `${price:.2f}`\n"
+                    f"Researcher flipped: `{signal}` ({confidence:.0%})"
+                )
+
+    return closed
+
+
 async def execute_trades(state: PipelineState) -> PipelineState:
     current_prices = {sym: md.price for sym, md in state.market_data.items()}
 
@@ -55,6 +93,10 @@ async def execute_trades(state: PipelineState) -> PipelineState:
     triggered = paper_broker.check_stop_targets(current_prices)
     for r in triggered:
         r["trigger"] = "auto_close"
+        state.execution_results.append(r)
+
+    reversal_closed = await _close_on_signal_reversal(state, current_prices)
+    for r in reversal_closed:
         state.execution_results.append(r)
 
     for signal in state.approved_trades:
