@@ -403,6 +403,53 @@ async def run_correlation_cmd(period: str):
             console.print(f"  {a} <-> {b}: {c:.2f}")
 
 
+async def run_rl_train_cmd(period: str, timesteps: int, symbols: list[str] | None = None):
+    try:
+        from agents.python.rl.trainer import TrainConfig, train
+    except ImportError:
+        console.print("[red]RL deps not installed. pip install -r requirements-rl.txt[/]")
+        return
+
+    syms = symbols or settings.symbols
+    console.print(f"\n[bold]RL train[/] symbols={len(syms)} timesteps={timesteps:,} period={period}")
+    cfg = TrainConfig(symbols=syms, period=period, total_timesteps=timesteps)
+    path = await asyncio.to_thread(train, cfg)
+    console.print(f"[green]Model saved:[/] {path}")
+
+
+async def run_rl_eval_cmd(period: str, symbols: list[str] | None = None):
+    try:
+        from agents.python.rl.trainer import evaluate, load_historical, load_latest
+    except ImportError:
+        console.print("[red]RL deps not installed. pip install -r requirements-rl.txt[/]")
+        return
+
+    model = load_latest()
+    if model is None:
+        console.print("[red]No trained model found. Run 'rl-train' first.[/]")
+        return
+
+    syms = symbols or settings.symbols
+    console.print(f"\n[bold]RL eval[/] symbols={len(syms)} period={period}")
+    data = await asyncio.to_thread(load_historical, syms, period)
+    results = await asyncio.to_thread(evaluate, model, data)
+
+    table = Table(title="RL evaluation", box=box.ROUNDED)
+    for col in ["Symbol", "Trades", "Wins", "Win %", "Total PnL $", "Final Equity $"]:
+        table.add_column(col, justify="right")
+    for sym, r in results.items():
+        color = "green" if r["total_pnl"] >= 0 else "red"
+        table.add_row(
+            sym,
+            str(r["trades"]),
+            str(r["wins"]),
+            f"{r['win_rate'] * 100:.1f}",
+            f"[{color}]${r['total_pnl']:+,.2f}[/]",
+            f"${r['final_equity']:,.2f}",
+        )
+    console.print(table)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Stock Trader — Multi-Agent AI System")
     parser.add_argument(
@@ -418,6 +465,8 @@ async def main():
             "walk-forward",
             "optimize",
             "correlation",
+            "rl-train",
+            "rl-eval",
         ],
         help="Command to execute",
     )
@@ -427,7 +476,11 @@ async def main():
     parser.add_argument("--test-days", type=int, default=30, help="Walk-forward test window")
     parser.add_argument("--period", default="6mo", help="Backtest period (1mo, 3mo, 6mo, 1y, 2y)")
     parser.add_argument("--save", action="store_true", help="Save backtest results to paper broker DB")
+    parser.add_argument("--timesteps", type=int, default=100_000, help="RL training timesteps")
+    parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols override")
     args = parser.parse_args()
+
+    symbols_override = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or None
 
     print_banner()
 
@@ -471,6 +524,12 @@ async def main():
             console.print("[red]Fix missing dependencies before running[/]")
             return
         await run_loop(args.interval, args.dry_run)
+
+    elif args.command == "rl-train":
+        await run_rl_train_cmd(args.period, args.timesteps, symbols_override)
+
+    elif args.command == "rl-eval":
+        await run_rl_eval_cmd(args.period, symbols_override)
 
 
 def cli():
