@@ -216,8 +216,8 @@ async def show_status():
     console.print(f"\n  Total trades: {stats['total_trades']} | Win rate: {stats['win_rate']:.1%} | Total P/L: ${stats['total_pl']:+.2f}")
 
 
-async def run_backtest_cmd(period: str, symbols: list[str] | None = None):
-    from agents.python.backtest import run_backtest
+async def run_backtest_cmd(period: str, symbols: list[str] | None = None, save: bool = False):
+    from agents.python.backtest import run_backtest, save_to_broker
 
     syms = symbols or settings.symbols
     console.print(f"\n[bold]Backtest[/] on {len(syms)} symbols, period={period}")
@@ -226,6 +226,10 @@ async def run_backtest_cmd(period: str, symbols: list[str] | None = None):
 
     result = await asyncio.to_thread(run_backtest, syms, 100_000.0, period)
     summary = result.summary()
+
+    if save:
+        save_to_broker(result)
+        console.print("[green]Saved backtest results to paper broker DB[/]\n")
 
     table = Table(title="Backtest Results", box=box.ROUNDED)
     table.add_column("Metric", style="cyan")
@@ -292,6 +296,7 @@ async def main():
     parser.add_argument("--interval", type=int, default=settings.cycle_interval_sec, help="Loop interval in seconds")
     parser.add_argument("--dry-run", action="store_true", help="Analyze without executing trades")
     parser.add_argument("--period", default="6mo", help="Backtest period (1mo, 3mo, 6mo, 1y, 2y)")
+    parser.add_argument("--save", action="store_true", help="Save backtest results to paper broker DB")
     args = parser.parse_args()
 
     print_banner()
@@ -303,7 +308,7 @@ async def main():
         await show_status()
 
     elif args.command == "backtest":
-        await run_backtest_cmd(args.period)
+        await run_backtest_cmd(args.period, save=args.save)
 
     elif args.command == "dashboard":
         run_dashboard()

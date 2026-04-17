@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 
 import pandas as pd
 
+from agents.python import paper_broker
 from agents.python.data_collector import fetch_candles
 from agents.python.indicators import (
     _to_df,
@@ -261,3 +263,40 @@ def run_backtest(
 
     result.final_capital = cash
     return result
+
+
+def save_to_broker(result: BacktestResult) -> None:
+    paper_broker.reset_account()
+    db = paper_broker._db_path()
+    db.parent.mkdir(parents=True, exist_ok=True)
+
+    with sqlite3.connect(db) as conn:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS account (id INTEGER PRIMARY KEY CHECK (id = 1), cash REAL NOT NULL, initial_deposit REAL NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS positions (symbol TEXT PRIMARY KEY, qty INTEGER NOT NULL, avg_entry REAL NOT NULL, stop_loss REAL, take_profit REAL, opened_at TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS trades (id INTEGER PRIMARY KEY AUTOINCREMENT, symbol TEXT NOT NULL, side TEXT NOT NULL, qty INTEGER NOT NULL, entry_price REAL NOT NULL, exit_price REAL, pnl REAL, pnl_pct REAL, opened_at TEXT NOT NULL, closed_at TEXT, close_reason TEXT);
+            CREATE TABLE IF NOT EXISTS equity_curve (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp TEXT NOT NULL, cash REAL NOT NULL, positions_value REAL NOT NULL, equity REAL NOT NULL, unrealized_pl REAL NOT NULL);
+        """)
+
+        conn.execute(
+            "INSERT OR REPLACE INTO account (id, cash, initial_deposit, created_at) VALUES (1, ?, ?, ?)",
+            (result.final_capital, result.initial_capital, datetime.now().isoformat()),
+        )
+
+        for t in result.trades:
+            conn.execute(
+                "INSERT INTO trades (symbol, side, qty, entry_price, exit_price, pnl, pnl_pct, opened_at, closed_at, close_reason) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (
+                    t["symbol"], "long", t["qty"], t["entry"], t["exit"],
+                    t["pnl"], t["pnl_pct"] / 100 if t["pnl_pct"] else 0,
+                    t["opened_at"], t["closed_at"], t["reason"],
+                ),
+            )
+
+        for p in result.equity_curve:
+            conn.execute(
+                "INSERT INTO equity_curve (timestamp, cash, positions_value, equity, unrealized_pl) VALUES (?,?,?,?,?)",
+                (p["timestamp"], p["cash"], p["positions_value"], p["equity"], 0.0),
+            )
+
+        conn.commit()
