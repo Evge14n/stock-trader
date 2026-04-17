@@ -407,6 +407,27 @@ async def tuning_history(limit: int = 10):
     return await asyncio.to_thread(get_tuning_history, limit)
 
 
+@app.post("/api/strategy/auto_switch")
+async def strategy_auto_switch():
+    from agents.python.regime_switcher import auto_switch_strategy
+
+    return await asyncio.to_thread(auto_switch_strategy)
+
+
+@app.get("/api/strategy/active")
+async def active_strategy():
+    from agents.python.regime_switcher import load_active_strategy
+
+    return await asyncio.to_thread(load_active_strategy)
+
+
+@app.post("/api/strategy/override")
+async def override_strategy(name: str):
+    from agents.python.regime_switcher import override_strategy as _override
+
+    return await asyncio.to_thread(_override, name)
+
+
 @app.post("/api/evolve")
 async def evolve():
     from agents.python.genetic_evolver import evolve_generation

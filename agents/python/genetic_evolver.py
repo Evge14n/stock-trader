@@ -78,7 +78,19 @@ async def _mutate(parent: Individual) -> str | None:
 
 
 async def _crossover(parent_a: Individual, parent_b: Individual) -> str | None:
-    prompt = "Parent A:" + chr(10) + parent_a.code + chr(10) + chr(10) + "Parent B:" + chr(10) + parent_b.code + chr(10) + chr(10) + "Generate a CHILD combining both."
+    prompt = (
+        "Parent A:"
+        + chr(10)
+        + parent_a.code
+        + chr(10)
+        + chr(10)
+        + "Parent B:"
+        + chr(10)
+        + parent_b.code
+        + chr(10)
+        + chr(10)
+        + "Generate a CHILD combining both."
+    )
     response = await llm_client.query(prompt, system=CROSSOVER_SYSTEM, temperature=0.8, max_tokens=800)
     code = _extract_code(response)
     valid, _ = _validate_ast(code)
@@ -99,6 +111,7 @@ def _backtest_individual(code: str, symbols: list[str]) -> dict:
 
     class _Candidate:
         name = "evolved"
+
         def signal(self, df, i):
             try:
                 r = strategy_fn(df, i)
@@ -124,12 +137,20 @@ def _pop_dir() -> Path:
 def _save_individual(ind: Individual) -> None:
     d = _pop_dir()
     d.mkdir(parents=True, exist_ok=True)
-    (d / f"{ind.name}.json").write_bytes(orjson.dumps({
-        "code": ind.code, "fitness": ind.fitness, "name": ind.name,
-        "backtest": ind.backtest, "generation": ind.generation,
-        "parent_names": ind.parent_names,
-        "created_at": datetime.now().isoformat(),
-    }, option=orjson.OPT_INDENT_2))
+    (d / f"{ind.name}.json").write_bytes(
+        orjson.dumps(
+            {
+                "code": ind.code,
+                "fitness": ind.fitness,
+                "name": ind.name,
+                "backtest": ind.backtest,
+                "generation": ind.generation,
+                "parent_names": ind.parent_names,
+                "created_at": datetime.now().isoformat(),
+            },
+            option=orjson.OPT_INDENT_2,
+        )
+    )
 
 
 def load_population() -> list[Individual]:
@@ -185,7 +206,13 @@ async def evolve_generation(target_symbols: list[str] | None = None, size: int =
         if code:
             bt = _backtest_individual(code, symbols)
             fitness = _fitness_score(bt)
-            child = Individual(code=code, fitness=fitness, backtest=bt, generation=next_gen, parent_names=[parents[0].name, parents[1].name])
+            child = Individual(
+                code=code,
+                fitness=fitness,
+                backtest=bt,
+                generation=next_gen,
+                parent_names=[parents[0].name, parents[1].name],
+            )
             child.name = _strategy_name(child.code, next_gen)
             offspring.append(child)
 
