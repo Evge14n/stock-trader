@@ -71,6 +71,8 @@ def _calc_quantity(price: float, stop_pct: float, confidence: float = 0.5) -> in
 
 
 async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
+    from agents.python.consensus import compute_consensus, regime_ok_for_mean_reversion
+
     analyses = state.analyses.get(symbol, [])
     researcher = None
     for a in reversed(analyses):
@@ -78,11 +80,29 @@ async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
             researcher = a
             break
 
-    if not researcher or researcher.confidence < 0.55:
+    if not researcher or researcher.confidence < settings.researcher_min_confidence:
         return None
 
     if researcher.signal == "hold":
         return None
+
+    if settings.strict_consensus:
+        consensus = compute_consensus(analyses)
+        if not consensus.passes(settings.consensus_min_agents, settings.consensus_min_alignment):
+            return None
+
+        researcher_bullish = researcher.signal in ("buy", "strong_buy")
+        researcher_bearish = researcher.signal in ("sell", "strong_sell")
+        if researcher_bullish and consensus.direction != "bullish":
+            return None
+        if researcher_bearish and consensus.direction != "bearish":
+            return None
+
+        indicators = state.indicators.get(symbol, [])
+        adx_ind = next((i for i in indicators if i.name == "ADX"), None)
+        adx_value = adx_ind.value if adx_ind else 0.0
+        if adx_value > 0 and not regime_ok_for_mean_reversion(adx_value):
+            return None
 
     prompt = _build_prompt(symbol, state)
     response = await llm_client.query(prompt, system=SYSTEM, temperature=0.1)

@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     dashboard_password: str = ""
 
     use_rl_decision: bool = False
+    strict_consensus: bool = True
+    consensus_min_agents: int = 4
+    consensus_min_alignment: float = 0.6
+    researcher_min_confidence: float = 0.7
 
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 
