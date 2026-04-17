@@ -417,6 +417,43 @@ async def run_rl_train_cmd(period: str, timesteps: int, symbols: list[str] | Non
     console.print(f"[green]Model saved:[/] {path}")
 
 
+async def run_rl_ab_cmd(period: str, train_ratio: float, timesteps: int, symbols: list[str] | None = None):
+    try:
+        from agents.python.rl.compare import run_ab
+    except ImportError:
+        console.print("[red]RL deps not installed. pip install -r requirements-rl.txt[/]")
+        return
+
+    syms = symbols or settings.symbols
+    console.print(
+        f"\n[bold]RL vs BB A/B[/] symbols={len(syms)} period={period} train_ratio={train_ratio} timesteps={timesteps:,}"
+    )
+
+    report = await asyncio.to_thread(run_ab, syms, period, train_ratio, timesteps)
+
+    table = Table(title="RL vs BB — out-of-sample comparison", box=box.ROUNDED)
+    for col in ["Strategy", "Trades", "Wins", "Win %", "Total PnL $", "Total PnL %", "Final Capital $"]:
+        table.add_column(col, justify="right")
+
+    for r in (report.rl, report.bb):
+        s = r.summary()
+        color = "green" if s["total_pnl"] >= 0 else "red"
+        table.add_row(
+            s["name"],
+            str(s["trades"]),
+            str(s["wins"]),
+            f"{s['win_rate']:.1f}",
+            f"[{color}]${s['total_pnl']:+,.2f}[/]",
+            f"[{color}]{s['total_pnl_pct']:+.2f}%[/]",
+            f"${s['final_capital']:,.2f}",
+        )
+    console.print(table)
+
+    winner_color = "green"
+    console.print(f"\n[bold {winner_color}]Winner:[/] {report.winner}")
+    console.print(f"Delta PnL: {report.rl.total_pnl_pct - report.bb.total_pnl_pct:+.2f}% (rl - bb)")
+
+
 async def run_rl_walk_forward_cmd(period: str, train_bars: int, test_bars: int, timesteps: int):
     try:
         from agents.python.rl.walk_forward import run_rl_walk_forward
@@ -517,6 +554,7 @@ async def main():
             "rl-train",
             "rl-eval",
             "rl-walk-forward",
+            "rl-ab",
         ],
         help="Command to execute",
     )
@@ -528,6 +566,7 @@ async def main():
     parser.add_argument("--save", action="store_true", help="Save backtest results to paper broker DB")
     parser.add_argument("--timesteps", type=int, default=100_000, help="RL training timesteps")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols override")
+    parser.add_argument("--train-ratio", type=float, default=0.7, help="A/B split ratio")
     args = parser.parse_args()
 
     symbols_override = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or None
@@ -583,6 +622,9 @@ async def main():
 
     elif args.command == "rl-walk-forward":
         await run_rl_walk_forward_cmd(args.period, args.train_days, args.test_days, args.timesteps)
+
+    elif args.command == "rl-ab":
+        await run_rl_ab_cmd(args.period, args.train_ratio, args.timesteps, symbols_override)
 
 
 def cli():
