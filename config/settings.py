@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     dashboard_username: str = ""
     dashboard_password: str = ""
 
+    use_rl_decision: bool = False
+
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 
     @property

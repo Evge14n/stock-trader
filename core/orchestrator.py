@@ -23,7 +23,19 @@ from agents.python.order_manager import execute_trades
 from agents.python.patterns import analyze as pattern_analyze
 from agents.python.risk_validator import validate
 from agents.python.watchlist_scanner import filter_watchlist
+from config.settings import settings
 from core.state import PipelineState
+
+
+def _resolve_decide():
+    if settings.use_rl_decision:
+        try:
+            from agents.python.rl.agent import decide as rl_decide
+
+            return rl_decide
+        except ImportError:
+            pass
+    return decide
 
 
 def _wrap(fn, name: str):
@@ -169,7 +181,7 @@ def build_graph() -> StateGraph:
     graph.add_node("volatility_analysis", _wrap(volatility_analyze, "volatility_analysis"))
     graph.add_node("debate", _wrap(debate_analyze, "debate"))
     graph.add_node("research", _wrap(synthesize, "research"))
-    graph.add_node("trade_decision", _wrap(decide, "trade_decision"))
+    graph.add_node("trade_decision", _wrap(_resolve_decide(), "trade_decision"))
     graph.add_node("risk_check", _wrap(validate, "risk_check"))
     graph.add_node("execute", node_execute)
 
