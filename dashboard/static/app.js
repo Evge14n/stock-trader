@@ -994,7 +994,7 @@ function switchView(name) {
   if (name === 'analyses') loadAnalyses();
   if (name === 'market') loadMarket();
   if (name === 'activity') loadActivity();
-  if (name === 'analytics') loadAnalyticsView();
+  if (name === 'analytics') { loadAnalyticsView(); loadRollingMetrics(); }
   if (name === 'intelligence') { loadExplain(); loadVoting(); }
 }
 
@@ -1042,6 +1042,68 @@ if (btnExport) btnExport.addEventListener('click', exportDataset);
 
 const btnRL = document.getElementById('btn-refresh-rl');
 if (btnRL) btnRL.addEventListener('click', loadRLStatus);
+
+async function loadRollingMetrics() {
+  const el = document.getElementById('rolling-metrics');
+  if (!el) return;
+  el.replaceChildren();
+
+  try {
+    const data = await fetchJson('/api/performance');
+    const windows = [
+      { key: 'd7', label: '7 днів' },
+      { key: 'd30', label: '30 днів' },
+      { key: 'd90', label: '90 днів' },
+    ];
+
+    const grid = document.createElement('div');
+    grid.className = 'metrics-grid';
+
+    for (const w of windows) {
+      const m = data[w.key] || {};
+      const card = document.createElement('div');
+      card.className = 'metric-card';
+
+      const title = document.createElement('div');
+      title.className = 'metric-title';
+      title.textContent = w.label;
+      card.appendChild(title);
+
+      const rows = [
+        { label: 'Sharpe', value: (m.sharpe ?? 0).toFixed(2), color: (m.sharpe ?? 0) >= 1 ? '#4ade80' : (m.sharpe ?? 0) < 0 ? '#f87171' : '#facc15' },
+        { label: 'Sortino', value: (m.sortino ?? 0).toFixed(2), color: (m.sortino ?? 0) >= 1.5 ? '#4ade80' : (m.sortino ?? 0) < 0 ? '#f87171' : '#facc15' },
+        { label: 'Calmar', value: (m.calmar ?? 0).toFixed(2), color: (m.calmar ?? 0) >= 1 ? '#4ade80' : '#facc15' },
+        { label: 'Return %', value: (m.total_return_pct ?? 0).toFixed(2) + '%', color: (m.total_return_pct ?? 0) >= 0 ? '#4ade80' : '#f87171' },
+        { label: 'Max DD %', value: (m.max_drawdown_pct ?? 0).toFixed(2) + '%' },
+        { label: 'Samples', value: String(m.samples ?? 0), muted: true },
+      ];
+
+      for (const r of rows) {
+        const row = document.createElement('div');
+        row.className = 'metric-row';
+        const l = document.createElement('span');
+        l.textContent = r.label;
+        l.className = 'metric-label';
+        const v = document.createElement('strong');
+        v.textContent = r.value;
+        if (r.color) v.style.color = r.color;
+        if (r.muted) v.className = 'muted';
+        row.appendChild(l);
+        row.appendChild(v);
+        card.appendChild(row);
+      }
+
+      grid.appendChild(card);
+    }
+    el.appendChild(grid);
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка завантаження';
+    el.appendChild(err);
+  }
+}
 
 async function loadVoting() {
   const el = document.getElementById('voting-content');

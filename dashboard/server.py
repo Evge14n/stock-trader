@@ -539,6 +539,13 @@ async def trigger_daily_report():
     return {"sent": ok}
 
 
+@app.get("/api/performance")
+async def performance():
+    from agents.python.metrics import performance_snapshot
+
+    return performance_snapshot()
+
+
 @app.get("/api/voting")
 async def voting():
     if not runner.last_result:

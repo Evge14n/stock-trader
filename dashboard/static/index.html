@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Trader Dashboard</title>
-<link rel="stylesheet" href="/static/style.css?v=6">
+<link rel="stylesheet" href="/static/style.css?v=7">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
@@ -235,6 +235,14 @@
     </section>
 
     <section class="view hidden" id="view-analytics">
+      <div class="card">
+        <div class="card-header">
+          <h3>📊 Rolling performance</h3>
+          <span class="muted">Sharpe / Sortino / Calmar на 7d, 30d, 90d</span>
+        </div>
+        <div id="rolling-metrics" class="rolling-metrics"></div>
+      </div>
+
       <div class="grid-2">
         <div class="card">
           <div class="card-header">
@@ -351,6 +359,6 @@
   </main>
 </div>
 
-<script src="/static/app.js?v=8"></script>
+<script src="/static/app.js?v=9"></script>
 </body>
 </html>
