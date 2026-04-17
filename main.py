@@ -229,15 +229,20 @@ async def show_status():
     )
 
 
-async def run_backtest_cmd(period: str, symbols: list[str] | None = None, save: bool = False):
+async def run_backtest_cmd(
+    period: str,
+    symbols: list[str] | None = None,
+    save: bool = False,
+    strategy: str = "bb_mean_reversion",
+):
     from agents.python.backtest import run_backtest, save_to_broker
 
     syms = symbols or settings.symbols
-    console.print(f"\n[bold]Backtest[/] on {len(syms)} symbols, period={period}")
+    console.print(f"\n[bold]Backtest[/] on {len(syms)} symbols, period={period}, strategy={strategy}")
     console.print(f"Symbols: {', '.join(syms)}")
     console.print("[dim]Running historical simulation...[/]\n")
 
-    result = await asyncio.to_thread(run_backtest, syms, 100_000.0, period)
+    result = await asyncio.to_thread(run_backtest, syms, 100_000.0, period, 0.02, 5, 0.04, 0.08, strategy)
     summary = result.summary()
 
     if save:
@@ -567,6 +572,12 @@ async def main():
     parser.add_argument("--timesteps", type=int, default=100_000, help="RL training timesteps")
     parser.add_argument("--symbols", type=str, default="", help="Comma-separated symbols override")
     parser.add_argument("--train-ratio", type=float, default=0.7, help="A/B split ratio")
+    parser.add_argument(
+        "--strategy",
+        default="bb_mean_reversion",
+        choices=["bb_mean_reversion", "momentum", "momentum_breakout", "bb_regime_filtered"],
+        help="Backtest strategy",
+    )
     args = parser.parse_args()
 
     symbols_override = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or None
@@ -580,7 +591,7 @@ async def main():
         await show_status()
 
     elif args.command == "backtest":
-        await run_backtest_cmd(args.period, save=args.save)
+        await run_backtest_cmd(args.period, save=args.save, strategy=args.strategy)
 
     elif args.command == "walk-forward":
         await run_walk_forward_cmd(args.period, args.train_days, args.test_days)

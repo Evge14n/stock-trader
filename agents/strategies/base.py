@@ -104,10 +104,29 @@ class Momentum(Strategy):
         return "hold"
 
 
+class BBRegimeFiltered(Strategy):
+    name = "bb_regime_filtered"
+
+    def signal(self, df: pd.DataFrame, i: int) -> str:
+        from agents.python.consensus import regime_ok_for_mean_reversion
+        from agents.python.indicators import calc_adx
+
+        if i < 30:
+            return "hold"
+
+        window = df.iloc[: i + 1]
+        adx = calc_adx(window)
+        if not regime_ok_for_mean_reversion(adx):
+            return "hold"
+
+        return BBMeanReversion().signal(df, i)
+
+
 STRATEGIES: dict[str, type[Strategy]] = {
     BBMeanReversion.name: BBMeanReversion,
     MomentumBreakout.name: MomentumBreakout,
     Momentum.name: Momentum,
+    BBRegimeFiltered.name: BBRegimeFiltered,
 }
 
 

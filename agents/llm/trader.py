@@ -71,7 +71,7 @@ def _calc_quantity(price: float, stop_pct: float, confidence: float = 0.5) -> in
 
 
 async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
-    from agents.python.consensus import compute_consensus, regime_ok_for_mean_reversion
+    from agents.python.consensus import compute_consensus
 
     analyses = state.analyses.get(symbol, [])
     researcher = None
@@ -96,12 +96,6 @@ async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
         if researcher_bullish and consensus.direction != "bullish":
             return None
         if researcher_bearish and consensus.direction != "bearish":
-            return None
-
-        indicators = state.indicators.get(symbol, [])
-        adx_ind = next((i for i in indicators if i.name == "ADX"), None)
-        adx_value = adx_ind.value if adx_ind else 0.0
-        if adx_value > 0 and not regime_ok_for_mean_reversion(adx_value):
             return None
 
     prompt = _build_prompt(symbol, state)
