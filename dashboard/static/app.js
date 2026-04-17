@@ -519,6 +519,7 @@ async function refreshAll() {
   if (active === 'view-trades') await loadTrades();
   if (active === 'view-analyses') await loadAnalyses();
   if (active === 'view-activity') await loadActivity();
+  if (active === 'view-analytics') await loadAnalyticsView();
 }
 
 function switchView(name) {
