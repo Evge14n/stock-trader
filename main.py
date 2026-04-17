@@ -230,6 +230,13 @@ async def run_loop(interval: int, dry_run: bool = False):
     while True:
         try:
             await run_cycle(dry_run)
+            if not dry_run:
+                try:
+                    from agents.python.daily_digest import send_if_due
+
+                    await send_if_due()
+                except Exception:
+                    pass
             console.print(f"\n[dim]Next cycle in {interval}s...[/]")
             await asyncio.sleep(interval)
         except KeyboardInterrupt:

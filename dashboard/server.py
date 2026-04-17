@@ -92,6 +92,12 @@ class PipelineRunner:
     async def auto_loop(self):
         while self.auto_mode:
             await self.run_once(dry_run=False)
+            try:
+                from agents.python.daily_digest import send_if_due
+
+                await send_if_due()
+            except Exception:
+                pass
             await asyncio.sleep(self.interval_sec)
 
 
@@ -537,6 +543,14 @@ async def trigger_daily_report():
 
     ok = await send_daily_report()
     return {"sent": ok}
+
+
+@app.post("/api/daily_digest/send")
+async def daily_digest_send():
+    from agents.python.daily_digest import force_send
+
+    sent = await force_send()
+    return {"sent": sent}
 
 
 @app.get("/api/market_regime")
