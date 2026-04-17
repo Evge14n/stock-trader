@@ -417,6 +417,55 @@ async def run_rl_train_cmd(period: str, timesteps: int, symbols: list[str] | Non
     console.print(f"[green]Model saved:[/] {path}")
 
 
+async def run_rl_walk_forward_cmd(period: str, train_bars: int, test_bars: int, timesteps: int):
+    try:
+        from agents.python.rl.walk_forward import run_rl_walk_forward
+    except ImportError:
+        console.print("[red]RL deps not installed. pip install -r requirements-rl.txt[/]")
+        return
+
+    syms = settings.symbols
+    console.print(
+        f"\n[bold]RL walk-forward[/] symbols={len(syms)} period={period} "
+        f"train={train_bars} test={test_bars} timesteps={timesteps:,}"
+    )
+
+    report = await asyncio.to_thread(
+        run_rl_walk_forward,
+        syms,
+        period,
+        train_bars,
+        test_bars,
+        test_bars,
+        timesteps,
+    )
+
+    s = report.summary()
+    table = Table(title="RL walk-forward summary", box=box.ROUNDED)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", justify="right")
+    for k, v in s.items():
+        table.add_row(k.replace("_", " ").title(), str(v))
+    console.print(table)
+
+    if report.windows:
+        w_table = Table(title=f"Windows ({len(report.windows)})", box=box.SIMPLE)
+        for col in ["#", "Train", "Test", "Test PnL $", "Trades", "Wins"]:
+            w_table.add_column(col, justify="right")
+        for i, w in enumerate(report.windows, 1):
+            pnl = w.test_result.get("total_pnl", 0)
+            color = "green" if pnl > 0 else "red"
+            w_table.add_row(
+                str(i),
+                f"{w.train_start}..{w.train_end}",
+                f"{w.test_start}..{w.test_end}",
+                f"[{color}]${pnl:+,.2f}[/]",
+                str(w.test_result.get("total_trades", 0)),
+                str(w.test_result.get("total_wins", 0)),
+            )
+        console.print(w_table)
+
+
 async def run_rl_eval_cmd(period: str, symbols: list[str] | None = None):
     try:
         from agents.python.rl.trainer import evaluate, load_historical, load_latest
@@ -467,6 +516,7 @@ async def main():
             "correlation",
             "rl-train",
             "rl-eval",
+            "rl-walk-forward",
         ],
         help="Command to execute",
     )
@@ -530,6 +580,9 @@ async def main():
 
     elif args.command == "rl-eval":
         await run_rl_eval_cmd(args.period, symbols_override)
+
+    elif args.command == "rl-walk-forward":
+        await run_rl_walk_forward_cmd(args.period, args.train_days, args.test_days, args.timesteps)
 
 
 def cli():
