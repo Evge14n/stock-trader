@@ -386,6 +386,21 @@ async def news_feed():
     return await asyncio.to_thread(fetch_live_news, 3)
 
 
+@app.get("/api/macro")
+async def macro():
+    from agents.python.macro import get_macro_summary
+
+    return await asyncio.to_thread(get_macro_summary)
+
+
+@app.post("/api/daily_report")
+async def trigger_daily_report():
+    from agents.python.daily_report import send_daily_report
+
+    ok = await send_daily_report()
+    return {"sent": ok}
+
+
 @app.get("/api/circuit_breaker")
 async def circuit_breaker_status():
     from agents.python.circuit_breaker import check_drawdown, is_trading_hours

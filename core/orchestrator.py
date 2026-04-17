@@ -16,8 +16,10 @@ from agents.llm.volatility_analyst import analyze as volatility_analyze
 from agents.python import portfolio_tracker
 from agents.python.data_collector import collect_all
 from agents.python.indicators import compute_all
+from agents.python.multi_timeframe import analyze as multi_tf_analyze
 from agents.python.news_fetcher import collect_news
 from agents.python.order_manager import execute_trades
+from agents.python.patterns import analyze as pattern_analyze
 from agents.python.risk_validator import validate
 from agents.python.watchlist_scanner import filter_watchlist
 from core.state import PipelineState
@@ -156,6 +158,8 @@ def build_graph() -> StateGraph:
     graph.add_node("collect_news", _wrap(collect_news, "collect_news"))
     graph.add_node("compute_indicators", _wrap(compute_all, "compute_indicators"))
     graph.add_node("filter_watchlist", _wrap(filter_watchlist, "filter_watchlist"))
+    graph.add_node("pattern_recognizer", _wrap(pattern_analyze, "pattern_recognizer"))
+    graph.add_node("multi_timeframe", _wrap(multi_tf_analyze, "multi_timeframe"))
     graph.add_node("technical_analysis", _wrap(technical_analyze, "technical_analysis"))
     graph.add_node("news_analysis", _wrap(news_analyze, "news_analysis"))
     graph.add_node("sector_analysis", _wrap(sector_analyze, "sector_analysis"))
@@ -171,7 +175,9 @@ def build_graph() -> StateGraph:
     graph.add_edge("collect_data", "collect_news")
     graph.add_edge("collect_news", "compute_indicators")
     graph.add_edge("compute_indicators", "filter_watchlist")
-    graph.add_edge("filter_watchlist", "technical_analysis")
+    graph.add_edge("filter_watchlist", "pattern_recognizer")
+    graph.add_edge("pattern_recognizer", "multi_timeframe")
+    graph.add_edge("multi_timeframe", "technical_analysis")
     graph.add_edge("technical_analysis", "news_analysis")
     graph.add_edge("news_analysis", "sector_analysis")
     graph.add_edge("sector_analysis", "fundamental_analysis")
