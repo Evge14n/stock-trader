@@ -485,6 +485,257 @@ async function loadAnalyticsView() {
 }
 
 
+const REGIME_LABELS = {
+  bull_trend: '📈 Бичачий тренд',
+  bear_trend: '📉 Ведмежий тренд',
+  low_vol_range: '😴 Боковик (низька вол)',
+  choppy: '🌊 Бічний рух',
+  high_vol: '⚡ Висока волатильність',
+  neutral: '😐 Нейтральний',
+  unknown: '❓ Недостатньо даних',
+};
+
+const STRATEGY_LABELS = {
+  bb_mean_reversion: 'BB Mean Reversion',
+  momentum: 'Momentum',
+  momentum_breakout: 'Momentum Breakout',
+};
+
+async function loadRegime() {
+  const el = document.getElementById('regime-content');
+  el.replaceChildren();
+
+  const loading = document.createElement('div');
+  loading.className = 'muted';
+  loading.style.padding = '12px';
+  loading.textContent = 'Аналіз ринку...';
+  el.appendChild(loading);
+
+  try {
+    const data = await fetchJson('/api/regime');
+    el.replaceChildren();
+
+    const badge = document.createElement('div');
+    badge.className = `regime-badge regime-${esc(data.regime)}`;
+    badge.textContent = REGIME_LABELS[data.regime] || data.regime;
+    el.appendChild(badge);
+
+    const rec = document.createElement('div');
+    rec.className = 'regime-detail';
+    rec.innerHTML = `Рекомендована стратегія: <strong>${esc(STRATEGY_LABELS[data.strategy] || data.strategy)}</strong>`;
+    el.appendChild(rec);
+
+    const conf = document.createElement('div');
+    conf.className = 'regime-detail';
+    conf.innerHTML = `Впевненість: <strong>${(data.confidence * 100).toFixed(0)}%</strong> • Домінування: ${(data.dominance_pct * 100).toFixed(0)}%`;
+    el.appendChild(conf);
+
+    if (data.breakdown) {
+      const breakdown = document.createElement('div');
+      breakdown.className = 'regime-detail';
+      const parts = Object.entries(data.breakdown).map(([r, n]) => `${REGIME_LABELS[r] || r}: ${n}`);
+      breakdown.innerHTML = `Розподіл по акціях: <strong>${parts.join(', ')}</strong>`;
+      el.appendChild(breakdown);
+    }
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка завантаження';
+    el.appendChild(err);
+  }
+}
+
+async function loadMonteCarlo() {
+  const el = document.getElementById('mc-content');
+  el.replaceChildren();
+
+  const loading = document.createElement('div');
+  loading.className = 'muted';
+  loading.style.padding = '12px';
+  loading.textContent = '1000 симуляцій на рік... (5-10 сек)';
+  el.appendChild(loading);
+
+  try {
+    const data = await fetchJson('/api/monte_carlo?days=252&simulations=1000');
+    el.replaceChildren();
+
+    if (data.error) {
+      const err = document.createElement('div');
+      err.className = 'muted';
+      err.style.padding = '12px';
+      err.textContent = data.error + (data.hint ? ` (${data.hint})` : '');
+      el.appendChild(err);
+      return;
+    }
+
+    const bigNum = document.createElement('div');
+    const expRetClass = data.expected_return_pct >= 0 ? 'pos' : 'neg';
+    bigNum.className = `mc-big-number ${expRetClass}`;
+    bigNum.textContent = `${data.expected_return_pct >= 0 ? '+' : ''}${data.expected_return_pct.toFixed(1)}%`;
+    el.appendChild(bigNum);
+
+    const subtitle = document.createElement('div');
+    subtitle.className = 'muted';
+    subtitle.style.fontSize = '11px';
+    subtitle.style.marginBottom = '12px';
+    subtitle.textContent = `Очікуване зростання через рік (медіана ${fmt.money(data.median_final)})`;
+    el.appendChild(subtitle);
+
+    const rows = [
+      ['Ймовірність прибутку', `${data.prob_profit_pct.toFixed(0)}%`],
+      ['Ймовірність DD > 10%', `${data.prob_dd_over_10_pct.toFixed(0)}%`],
+      ['Ймовірність DD > 20%', `${data.prob_dd_over_20_pct.toFixed(0)}%`],
+      ['Найкращий сценарій', fmt.money(data.best_final)],
+      ['95% VaR', `${data.var_95_pct.toFixed(1)}%`],
+      ['Найгірший сценарій', fmt.money(data.worst_final)],
+    ];
+
+    rows.forEach(([label, value]) => {
+      const row = document.createElement('div');
+      row.className = 'mc-row';
+      const l = document.createElement('span');
+      l.className = 'mc-row-label';
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'mc-row-value';
+      v.textContent = value;
+      row.appendChild(l);
+      row.appendChild(v);
+      el.appendChild(row);
+    });
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка: ' + e.message;
+    el.appendChild(err);
+  }
+}
+
+async function loadExplain() {
+  const el = document.getElementById('explain-content');
+  el.replaceChildren();
+
+  const data = await fetchJson('/api/explain');
+  if (data.error) {
+    const hint = document.createElement('div');
+    hint.className = 'muted';
+    hint.style.padding = '20px';
+    hint.style.textAlign = 'center';
+    hint.textContent = data.hint || data.error;
+    el.appendChild(hint);
+    return;
+  }
+
+  const explanations = data.explanations || [];
+  if (!explanations.length) {
+    const hint = document.createElement('div');
+    hint.className = 'muted';
+    hint.style.padding = '20px';
+    hint.style.textAlign = 'center';
+    hint.textContent = 'Немає даних. Запусти цикл аналізу.';
+    el.appendChild(hint);
+    return;
+  }
+
+  explanations.forEach(exp => {
+    const box = document.createElement('div');
+    box.className = 'explain-symbol';
+
+    const header = document.createElement('div');
+    header.className = 'explain-header';
+
+    const name = document.createElement('span');
+    name.className = 'explain-symbol-name';
+    name.textContent = exp.symbol;
+    header.appendChild(name);
+
+    const decision = document.createElement('span');
+    decision.className = `explain-decision decision-${esc(exp.decision)}`;
+    decision.textContent = `${exp.decision} (${(exp.final_score || 0).toFixed(2)})`;
+    header.appendChild(decision);
+
+    box.appendChild(header);
+
+    const drivers = document.createElement('div');
+    drivers.className = 'explain-drivers';
+
+    (exp.top_drivers || []).forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'driver-row';
+
+      const agent = document.createElement('span');
+      agent.className = 'driver-agent';
+      agent.textContent = d.agent;
+      row.appendChild(agent);
+
+      const signal = document.createElement('span');
+      signal.className = `signal-badge signal-${esc(d.signal)}`;
+      signal.textContent = d.signal;
+      row.appendChild(signal);
+
+      const contrib = document.createElement('span');
+      contrib.style.fontVariantNumeric = 'tabular-nums';
+      contrib.style.fontSize = '11px';
+      contrib.className = d.contribution >= 0 ? 'pos' : 'neg';
+      contrib.textContent = (d.contribution >= 0 ? '+' : '') + d.contribution.toFixed(3);
+      row.appendChild(contrib);
+
+      const bar = document.createElement('div');
+      bar.className = 'driver-bar';
+      const fill = document.createElement('div');
+      fill.className = `driver-bar-fill ${d.contribution >= 0 ? 'pos' : 'neg'}`;
+      const width = Math.min(100, Math.abs(d.contribution) * 200);
+      if (d.contribution >= 0) {
+        fill.style.left = '50%';
+        fill.style.width = width + '%';
+      } else {
+        fill.style.right = '50%';
+        fill.style.width = width + '%';
+      }
+      bar.appendChild(fill);
+      row.appendChild(bar);
+
+      drivers.appendChild(row);
+    });
+
+    box.appendChild(drivers);
+    el.appendChild(box);
+  });
+}
+
+async function exportDataset() {
+  const resultEl = document.getElementById('export-result');
+  resultEl.textContent = 'Експортую...';
+
+  const data = await fetchJson('/api/export_dataset', { method: 'POST' });
+  resultEl.replaceChildren();
+
+  const title = document.createElement('div');
+  title.style.color = 'var(--pos)';
+  title.style.fontWeight = '600';
+  title.textContent = '✅ Готово!';
+  resultEl.appendChild(title);
+
+  const path = document.createElement('div');
+  path.style.fontSize = '11px';
+  path.style.marginTop = '6px';
+  path.innerHTML = `Dataset: <code>${esc(data.dataset)}</code><br>Notebook: <code>${esc(data.notebook)}</code>`;
+  resultEl.appendChild(path);
+
+  const list = document.createElement('ol');
+  list.style.marginTop = '10px';
+  list.style.paddingLeft = '20px';
+  list.style.fontSize = '12px';
+  (data.instructions || []).forEach(step => {
+    const li = document.createElement('li');
+    li.textContent = step.replace(/^\d+\.\s*/, '');
+    list.appendChild(li);
+  });
+  resultEl.appendChild(list);
+}
+
 async function loadStatus() {
   const s = await fetchJson('/api/status');
   setText('model-name', s.model);
@@ -532,6 +783,7 @@ function switchView(name) {
   if (name === 'market') loadMarket();
   if (name === 'activity') loadActivity();
   if (name === 'analytics') loadAnalyticsView();
+  if (name === 'intelligence') loadExplain();
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -566,6 +818,15 @@ document.getElementById('btn-reset').addEventListener('click', async () => {
 });
 
 document.getElementById('btn-refresh-market').addEventListener('click', loadMarket);
+
+const btnRegime = document.getElementById('btn-refresh-regime');
+if (btnRegime) btnRegime.addEventListener('click', loadRegime);
+
+const btnMC = document.getElementById('btn-refresh-mc');
+if (btnMC) btnMC.addEventListener('click', loadMonteCarlo);
+
+const btnExport = document.getElementById('btn-export-dataset');
+if (btnExport) btnExport.addEventListener('click', exportDataset);
 
 refreshAll();
 refreshTimer = setInterval(refreshAll, 5000);

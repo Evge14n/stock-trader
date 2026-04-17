@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Stock Trader Dashboard</title>
-<link rel="stylesheet" href="/static/style.css?v=2">
+<link rel="stylesheet" href="/static/style.css?v=3">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 </head>
@@ -26,6 +26,7 @@
       <button class="nav-btn" data-view="analyses">Аналіз агентів</button>
       <button class="nav-btn" data-view="market">Ринок</button>
       <button class="nav-btn" data-view="analytics">Аналітика</button>
+      <button class="nav-btn" data-view="intelligence">🧠 AI Insights</button>
       <button class="nav-btn" data-view="activity">Активність</button>
     </nav>
 
@@ -233,6 +234,51 @@
       </div>
     </section>
 
+    <section class="view hidden" id="view-intelligence">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header">
+            <h3>🎯 Ринковий режим</h3>
+            <button class="mini-btn" id="btn-refresh-regime">Оновити</button>
+          </div>
+          <div id="regime-content" class="regime-content">
+            <div class="muted" style="padding:20px;text-align:center;">Натисни "Оновити" щоб визначити</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>🎲 Monte Carlo прогноз</h3>
+            <button class="mini-btn" id="btn-refresh-mc">Прогноз на рік</button>
+          </div>
+          <div id="mc-content" class="mc-content">
+            <div class="muted" style="padding:20px;text-align:center;">Натисни "Прогноз" (1000 симуляцій)</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🔍 Explainable Decisions</h3>
+          <span class="muted">Чому AI вирішив саме так</span>
+        </div>
+        <div id="explain-content">
+          <div class="muted" style="padding:20px;text-align:center;">Запусти цикл і побачиш пояснення кожного рішення</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>🧠 Fine-tune свою модель</h3>
+          <button class="mini-btn primary-small" id="btn-export-dataset">Експортувати dataset</button>
+        </div>
+        <div class="finetune-info">
+          <p class="muted">Експортуй свою історію угод як training dataset для Gemma. Далі тренуєш свою модель на Kaggle (безкоштовний T4 GPU) і підключаєш до Ollama.</p>
+          <div id="export-result" class="muted" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    </section>
+
     <section class="view hidden" id="view-activity">
       <div class="card">
         <div class="card-header">
@@ -244,6 +290,6 @@
   </main>
 </div>
 
-<script src="/static/app.js?v=2"></script>
+<script src="/static/app.js?v=3"></script>
 </body>
 </html>

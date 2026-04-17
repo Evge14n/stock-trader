@@ -263,6 +263,88 @@ async def analytics():
     }
 
 
+@app.get("/api/regime")
+async def regime():
+    from agents.python.data_collector import fetch_candles
+    from agents.python.regime_detector import detect_portfolio_regime
+
+    def _load():
+        data = {}
+        for sym in settings.symbols[:5]:
+            candles = fetch_candles(sym, period="3mo")
+            if candles:
+                data[sym] = candles
+        return data
+
+    market_data = await asyncio.to_thread(_load)
+    return detect_portfolio_regime(market_data)
+
+
+@app.get("/api/monte_carlo")
+async def monte_carlo(days: int = 252, simulations: int = 1000):
+    from agents.python.monte_carlo import run_from_backtest_result
+
+    equity = paper_broker.get_equity_history(limit=10000)
+    if len(equity) < 2:
+        return {"error": "not enough equity history", "min_points": 2, "current_points": len(equity)}
+
+    account = paper_broker.get_account()
+    initial = account["equity"] if account["equity"] > 0 else 100_000.0
+
+    report = await asyncio.to_thread(run_from_backtest_result, equity, initial, days, simulations)
+    summary = report.summary()
+
+    final_sorted = sorted(report.final_equities) if report.final_equities else []
+    if final_sorted:
+        hist_buckets = 20
+        min_v = min(final_sorted)
+        max_v = max(final_sorted)
+        bucket_size = (max_v - min_v) / hist_buckets if max_v > min_v else 1
+        histogram = []
+        for i in range(hist_buckets):
+            lo = min_v + i * bucket_size
+            hi = min_v + (i + 1) * bucket_size
+            count = sum(1 for v in final_sorted if lo <= v < hi)
+            histogram.append({"range_start": round(lo, 0), "range_end": round(hi, 0), "count": count})
+    else:
+        histogram = []
+
+    return {**summary, "histogram": histogram, "initial_capital": initial}
+
+
+@app.get("/api/explain")
+async def explain():
+    from agents.python.explainer import explain_all
+    from core.orchestrator import _dict_to_state
+
+    if not runner.last_result:
+        return {"error": "no pipeline data", "hint": "run a cycle first"}
+
+    ps = _dict_to_state(runner.last_result)
+    return {"explanations": explain_all(ps)}
+
+
+@app.post("/api/export_dataset")
+async def export_dataset():
+    from agents.python.fine_tuning import export_training_dataset, generate_kaggle_notebook
+
+    dataset_path = await asyncio.to_thread(export_training_dataset)
+    notebook_path = await asyncio.to_thread(generate_kaggle_notebook)
+
+    return {
+        "dataset": str(dataset_path),
+        "notebook": str(notebook_path),
+        "instructions": [
+            "1. Upload fine_tune_dataset.jsonl as Kaggle dataset",
+            "2. Open stock_trader_finetune.ipynb in Kaggle (free T4 GPU)",
+            "3. Run all cells (30-60 min)",
+            "4. Download resulting GGUF file",
+            "5. ollama create gemma-stock-trader -f Modelfile",
+            "6. Set OLLAMA_MODEL=gemma-stock-trader in .env",
+        ],
+    }
+
+
 @app.get("/api/orders")
 async def orders(limit: int = 50):
     import sqlite3
