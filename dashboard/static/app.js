@@ -995,7 +995,7 @@ function switchView(name) {
   if (name === 'market') loadMarket();
   if (name === 'activity') loadActivity();
   if (name === 'analytics') loadAnalyticsView();
-  if (name === 'intelligence') loadExplain();
+  if (name === 'intelligence') { loadExplain(); loadVoting(); }
 }
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -1042,6 +1042,106 @@ if (btnExport) btnExport.addEventListener('click', exportDataset);
 
 const btnRL = document.getElementById('btn-refresh-rl');
 if (btnRL) btnRL.addEventListener('click', loadRLStatus);
+
+async function loadVoting() {
+  const el = document.getElementById('voting-content');
+  if (!el) return;
+  el.replaceChildren();
+
+  try {
+    const data = await fetchJson('/api/voting');
+    const rows = data.symbols || [];
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.className = 'muted';
+      empty.style.padding = '20px';
+      empty.style.textAlign = 'center';
+      empty.textContent = 'Поки немає голосів — запусти цикл';
+      el.appendChild(empty);
+      return;
+    }
+
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    const thead = document.createElement('thead');
+    const hrow = document.createElement('tr');
+    ['Символ', 'Голоси', 'Рішення', 'Конф.', 'Статус'].forEach(h => {
+      const th = document.createElement('th');
+      th.textContent = h;
+      hrow.appendChild(th);
+    });
+    thead.appendChild(hrow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+
+      const symTd = document.createElement('td');
+      const symStrong = document.createElement('strong');
+      symStrong.textContent = row.symbol;
+      symTd.appendChild(symStrong);
+      tr.appendChild(symTd);
+
+      const votesTd = document.createElement('td');
+      votesTd.style.fontSize = '12px';
+      for (const v of (row.votes || [])) {
+        const chip = document.createElement('span');
+        chip.style.display = 'inline-block';
+        chip.style.padding = '2px 6px';
+        chip.style.marginRight = '4px';
+        chip.style.borderRadius = '4px';
+        chip.style.background = v.action === 'buy' ? 'rgba(74,222,128,0.15)' : 'rgba(248,113,113,0.15)';
+        chip.style.color = v.action === 'buy' ? '#4ade80' : '#f87171';
+        chip.textContent = `${v.source}:${v.action}@${v.confidence.toFixed(2)}`;
+        votesTd.appendChild(chip);
+      }
+      tr.appendChild(votesTd);
+
+      const decTd = document.createElement('td');
+      if (row.signal_emitted) {
+        const strong = document.createElement('strong');
+        strong.textContent = row.signal_action || '—';
+        strong.style.color = row.signal_action === 'buy' ? '#4ade80' : '#f87171';
+        decTd.appendChild(strong);
+      } else {
+        const muted = document.createElement('span');
+        muted.className = 'muted';
+        muted.textContent = 'HOLD';
+        decTd.appendChild(muted);
+      }
+      tr.appendChild(decTd);
+
+      const confTd = document.createElement('td');
+      confTd.textContent = row.signal_confidence ? row.signal_confidence.toFixed(2) : '—';
+      tr.appendChild(confTd);
+
+      const statusTd = document.createElement('td');
+      if (row.approved) {
+        statusTd.textContent = '✅ approved';
+        statusTd.style.color = '#4ade80';
+      } else if (row.signal_emitted) {
+        statusTd.textContent = '⚠ rejected';
+        statusTd.style.color = '#facc15';
+      } else {
+        statusTd.textContent = '—';
+        statusTd.className = 'muted';
+      }
+      tr.appendChild(statusTd);
+
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    el.appendChild(table);
+  } catch (e) {
+    el.replaceChildren();
+    const err = document.createElement('div');
+    err.className = 'muted';
+    err.textContent = 'Помилка завантаження';
+    el.appendChild(err);
+  }
+}
 
 function _rlRow(label, value, valueColor) {
   const row = document.createElement('div');

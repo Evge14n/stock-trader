@@ -539,6 +539,68 @@ async def trigger_daily_report():
     return {"sent": ok}
 
 
+@app.get("/api/voting")
+async def voting():
+    if not runner.last_result:
+        return {"symbols": []}
+
+    analyses = runner.last_result.get("analyses", {})
+    signals = runner.last_result.get("signals", [])
+    approved = runner.last_result.get("approved_trades", [])
+
+    signals_by_symbol: dict[str, dict] = {}
+    for s in signals:
+        sym = s.get("symbol") if isinstance(s, dict) else getattr(s, "symbol", None)
+        if sym:
+            signals_by_symbol[sym] = s if isinstance(s, dict) else s.__dict__
+
+    approved_by_symbol = {(a.get("symbol") if isinstance(a, dict) else getattr(a, "symbol", None)) for a in approved}
+
+    out = []
+    for sym, entries in analyses.items():
+        picker_entries = [
+            e
+            for e in entries
+            if (e.get("agent") if isinstance(e, dict) else getattr(e, "agent", None)) == "smart_picker"
+        ]
+        if not picker_entries:
+            continue
+        latest = picker_entries[-1]
+        reasoning = latest.get("reasoning", "") if isinstance(latest, dict) else getattr(latest, "reasoning", "")
+        votes = []
+        for part in reasoning.split(";"):
+            part = part.strip()
+            if not part or ":" not in part:
+                continue
+            try:
+                source, rest = part.split(":", 1)
+                action_str, conf_str = rest.split("@")
+                votes.append(
+                    {
+                        "source": source.strip(),
+                        "action": action_str.strip(),
+                        "confidence": float(conf_str.strip()),
+                    }
+                )
+            except (ValueError, IndexError):
+                continue
+
+        signal = signals_by_symbol.get(sym)
+        out.append(
+            {
+                "symbol": sym,
+                "votes": votes,
+                "signal_emitted": signal is not None,
+                "signal_action": signal.get("action") if signal else None,
+                "signal_confidence": signal.get("confidence") if signal else None,
+                "approved": sym in approved_by_symbol,
+            }
+        )
+
+    out.sort(key=lambda x: (-int(x["signal_emitted"]), -len(x["votes"])))
+    return {"symbols": out}
+
+
 @app.get("/api/rl")
 async def rl_status():
     import json
