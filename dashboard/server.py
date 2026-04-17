@@ -539,6 +539,28 @@ async def trigger_daily_report():
     return {"sent": ok}
 
 
+@app.get("/api/voter_stats")
+async def voter_stats():
+    from agents.python.voter_stats import get_all_stats, get_weight
+
+    stats = get_all_stats()
+    return {
+        "voters": [
+            {
+                "voter": s.voter,
+                "wins": s.wins,
+                "losses": s.losses,
+                "total": s.total,
+                "win_rate": round(s.win_rate * 100, 1),
+                "avg_pnl": round(s.avg_pnl, 2),
+                "total_pnl": round(s.total_pnl, 2),
+                "weight": round(get_weight(s.voter), 2),
+            }
+            for s in stats
+        ]
+    }
+
+
 @app.get("/api/performance")
 async def performance():
     from agents.python.metrics import performance_snapshot

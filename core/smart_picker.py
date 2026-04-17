@@ -186,6 +186,13 @@ def gather_votes(symbol: str, state: PipelineState) -> list[StrategyVote]:
             v = None
         if v is not None:
             votes.append(v)
+
+    try:
+        from agents.python.voter_stats import apply_weights_to_votes
+
+        votes = apply_weights_to_votes(votes)
+    except Exception as e:
+        log.warning("voter_weight_apply_failed", error=str(e))
     return votes
 
 

@@ -148,6 +148,7 @@ def submit_order(
 
     broker = get_broker()
     now = datetime.now().isoformat()
+    voter_outcome: tuple[str, float] | None = None
 
     with _conn() as c:
         account = c.execute("SELECT cash FROM account WHERE id = 1").fetchone()
@@ -177,6 +178,13 @@ def submit_order(
                 pnl_pct = pnl / (existing["qty"] * existing["avg_entry"]) if existing["avg_entry"] else 0.0
                 price = exec_price
 
+                entry_order = c.execute(
+                    "SELECT reasoning FROM orders WHERE symbol = ? AND side = 'buy' AND status = 'filled' "
+                    "ORDER BY id DESC LIMIT 1",
+                    (symbol,),
+                ).fetchone()
+                entry_reasoning = entry_order["reasoning"] if entry_order else ""
+
                 c.execute("UPDATE account SET cash = cash + ? WHERE id = 1", (proceeds,))
                 c.execute("DELETE FROM positions WHERE symbol = ?", (symbol,))
                 c.execute(
@@ -195,6 +203,7 @@ def submit_order(
                     ),
                 )
                 status = "filled"
+                voter_outcome = (entry_reasoning, pnl)
         else:
             status = "rejected_invalid_side"
 
@@ -204,6 +213,14 @@ def submit_order(
         )
         c.commit()
         order_id = c.execute("SELECT last_insert_rowid() AS id").fetchone()["id"]
+
+    if voter_outcome:
+        try:
+            from agents.python.voter_stats import record_trade_outcome
+
+            record_trade_outcome(voter_outcome[0], voter_outcome[1])
+        except Exception:
+            pass
 
     return {
         "id": order_id,
