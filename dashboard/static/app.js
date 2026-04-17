@@ -486,6 +486,17 @@ async function loadAnalyticsView() {
 
 
 let allocationChart = null;
+const _loadingFlags = {};
+
+async function _throttled(key, fn) {
+  if (_loadingFlags[key]) return;
+  _loadingFlags[key] = true;
+  try {
+    await fn();
+  } finally {
+    _loadingFlags[key] = false;
+  }
+}
 
 async function loadBenchmark() {
   const el = document.getElementById('benchmark-content');
@@ -963,7 +974,10 @@ async function refreshAll() {
   ]);
 
   if (active === 'view-overview') {
-    Promise.allSettled([loadBenchmark(), loadAllocation(), loadSectorHeatmap(), loadNewsFeed()]);
+    _throttled('bench', loadBenchmark);
+    _throttled('alloc', loadAllocation);
+    _throttled('heat', loadSectorHeatmap);
+    _throttled('news', loadNewsFeed);
   }
   if (active === 'view-trades') await loadTrades();
   if (active === 'view-analyses') await loadAnalyses();
