@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     consensus_min_agents: int = 4
     consensus_min_alignment: float = 0.6
     researcher_min_confidence: float = 0.7
+    use_smart_picker: bool = True
+    smart_min_confidence: float = 0.65
+    smart_min_voters: int = 2
 
     data_dir: Path = Field(default_factory=lambda: Path(__file__).parent.parent / "data")
 

@@ -28,6 +28,10 @@ from core.state import PipelineState
 
 
 def _resolve_decide():
+    if settings.use_smart_picker:
+        from core.smart_picker import smart_decide
+
+        return smart_decide
     if settings.use_rl_decision:
         try:
             from agents.python.rl.agent import decide as rl_decide

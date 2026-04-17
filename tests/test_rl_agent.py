@@ -96,6 +96,7 @@ def test_resolve_decide_respects_flag(monkeypatch):
     from config.settings import settings
     from core.orchestrator import _resolve_decide
 
+    monkeypatch.setattr(settings, "use_smart_picker", False)
     monkeypatch.setattr(settings, "use_rl_decision", False)
     assert _resolve_decide() is llm_decide
 
