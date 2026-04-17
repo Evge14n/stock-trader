@@ -1,8 +1,11 @@
 from __future__ import annotations
+
 import asyncio
 from datetime import datetime
-import yfinance as yf
+
 import finnhub
+import yfinance as yf
+
 from config.settings import settings
 from core.state import MarketData, PipelineState
 

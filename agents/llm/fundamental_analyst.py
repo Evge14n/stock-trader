@@ -1,6 +1,9 @@
 from __future__ import annotations
+
 import asyncio
+
 import yfinance as yf
+
 from core import llm_client
 from core.state import Analysis, PipelineState
 
@@ -64,47 +67,53 @@ def _build_prompt(symbol: str, data: dict, price: float) -> str:
     return "\n".join(lines)
 
 
+async def _analyze_one(symbol: str, state: PipelineState) -> Analysis | None:
+    md = state.market_data.get(symbol)
+    if not md:
+        return None
+
+    try:
+        data = await asyncio.to_thread(_fetch_fundamentals, symbol)
+    except Exception as e:
+        state.add_error(f"fundamental_analyst [{symbol}]: {e}")
+        return None
+
+    prompt = _build_prompt(symbol, data, md.price)
+    response = await llm_client.query(prompt, system=SYSTEM)
+
+    signal = "neutral"
+    for s in ["bullish", "bearish", "neutral"]:
+        if s in response.lower():
+            signal = s
+            break
+
+    confidence = 0.5
+    pe = data.get("pe_ratio") or 0
+    if 0 < pe < 15:
+        confidence += 0.15
+    elif pe > 40:
+        confidence -= 0.1
+
+    rec = (data.get("recommendation") or "").lower()
+    if "buy" in rec or "strong_buy" in rec:
+        confidence += 0.1
+    elif "sell" in rec:
+        confidence -= 0.15
+
+    confidence = max(0.2, min(0.9, confidence))
+
+    return Analysis(
+        agent="fundamental_analyst",
+        symbol=symbol,
+        signal=signal,
+        confidence=round(confidence, 3),
+        reasoning=response[:500],
+    )
+
+
 async def analyze(state: PipelineState) -> PipelineState:
-    for symbol in state.symbols:
-        md = state.market_data.get(symbol)
-        if not md:
-            continue
-
-        try:
-            data = await asyncio.to_thread(_fetch_fundamentals, symbol)
-        except Exception as e:
-            state.add_error(f"fundamental_analyst [{symbol}]: {e}")
-            continue
-
-        prompt = _build_prompt(symbol, data, md.price)
-        response = await llm_client.query(prompt, system=SYSTEM)
-
-        signal = "neutral"
-        for s in ["bullish", "bearish", "neutral"]:
-            if s in response.lower():
-                signal = s
-                break
-
-        confidence = 0.5
-        pe = data.get("pe_ratio") or 0
-        if 0 < pe < 15:
-            confidence += 0.15
-        elif pe > 40:
-            confidence -= 0.1
-
-        rec = (data.get("recommendation") or "").lower()
-        if "buy" in rec or "strong_buy" in rec:
-            confidence += 0.1
-        elif "sell" in rec:
-            confidence -= 0.15
-
-        confidence = max(0.2, min(0.9, confidence))
-
-        state.analyses.setdefault(symbol, []).append(Analysis(
-            agent="fundamental_analyst",
-            symbol=symbol,
-            signal=signal,
-            confidence=round(confidence, 3),
-            reasoning=response[:500],
-        ))
+    results = await asyncio.gather(*[_analyze_one(s, state) for s in state.symbols])
+    for symbol, analysis in zip(state.symbols, results, strict=False):
+        if analysis:
+            state.analyses.setdefault(symbol, []).append(analysis)
     return state

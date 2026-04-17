@@ -1,26 +1,26 @@
 from __future__ import annotations
-import asyncio
+
 from datetime import datetime
 from typing import Any
 
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
-from core.state import PipelineState
-from agents.python.data_collector import collect_all
-from agents.python.news_fetcher import collect_news
-from agents.python.indicators import compute_all
-from agents.llm.technical_analyst import analyze as technical_analyze
-from agents.llm.news_analyst import analyze as news_analyze
-from agents.llm.researcher import synthesize
-from agents.llm.trader import decide
-from agents.llm.sector_analyst import analyze as sector_analyze
 from agents.llm.fundamental_analyst import analyze as fundamental_analyze
 from agents.llm.momentum_analyst import analyze as momentum_analyze
+from agents.llm.news_analyst import analyze as news_analyze
+from agents.llm.researcher import synthesize
+from agents.llm.sector_analyst import analyze as sector_analyze
+from agents.llm.technical_analyst import analyze as technical_analyze
+from agents.llm.trader import decide
 from agents.llm.volatility_analyst import analyze as volatility_analyze
-from agents.python.risk_validator import validate
-from agents.python.order_manager import execute_trades
-from agents.python.watchlist_scanner import filter_watchlist
 from agents.python import portfolio_tracker
+from agents.python.data_collector import collect_all
+from agents.python.indicators import compute_all
+from agents.python.news_fetcher import collect_news
+from agents.python.order_manager import execute_trades
+from agents.python.risk_validator import validate
+from agents.python.watchlist_scanner import filter_watchlist
+from core.state import PipelineState
 
 
 async def node_collect_data(state: dict[str, Any]) -> dict[str, Any]:
@@ -183,8 +183,13 @@ def _state_to_dict(ps: PipelineState) -> dict[str, Any]:
 
 def _dict_to_state(d: dict[str, Any]) -> PipelineState:
     from core.state import (
-        PipelineState, MarketData, Indicator, NewsItem,
-        Analysis, TradeSignal, RiskCheck,
+        Analysis,
+        Indicator,
+        MarketData,
+        NewsItem,
+        PipelineState,
+        RiskCheck,
+        TradeSignal,
     )
 
     ps = PipelineState()

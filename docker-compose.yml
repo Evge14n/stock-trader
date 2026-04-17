@@ -1,0 +1,37 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: stock-trader-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  app:
+    build: .
+    container_name: stock-trader-app
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:e2b}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
+      WATCHLIST: ${WATCHLIST:-AAPL,MSFT,GOOGL,AMZN,NVDA}
+      MAX_POSITION_SIZE: ${MAX_POSITION_SIZE:-1000}
+      RISK_PER_TRADE: ${RISK_PER_TRADE:-0.02}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

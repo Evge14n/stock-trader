@@ -1,6 +1,7 @@
 from __future__ import annotations
-import asyncio
+
 import argparse
+import asyncio
 import sys
 import uuid
 from datetime import datetime
@@ -13,15 +14,15 @@ import io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
+from agents.python import portfolio_tracker
 from config.settings import settings
 from core import llm_client
 from core.orchestrator import build_graph
-from agents.python import portfolio_tracker
 
 console = Console()
 

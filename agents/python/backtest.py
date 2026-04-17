@@ -1,10 +1,15 @@
 from __future__ import annotations
-import pandas as pd
-import numpy as np
+
 from datetime import datetime
+
+import pandas as pd
+
 from agents.python.data_collector import fetch_candles
 from agents.python.indicators import (
-    calc_rsi, calc_macd, calc_bollinger, calc_atr, _to_df,
+    _to_df,
+    calc_bollinger,
+    calc_macd,
+    calc_rsi,
 )
 
 
@@ -154,7 +159,7 @@ def run_backtest(
 
             high = px["high"]
             low = px["low"]
-            close = px["price"]
+            px["price"]
 
             exit_reason = None
             exit_price = None
@@ -195,7 +200,7 @@ def run_backtest(
                 if idx < 30:
                     continue
 
-                window = df.iloc[:idx + 1]
+                df.iloc[:idx + 1]
                 signal = bb_mean_reversion_signal(df, idx)
 
                 if signal == "buy":

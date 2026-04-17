@@ -1,20 +1,20 @@
 from __future__ import annotations
+
 import asyncio
 import sys
 from contextlib import asynccontextmanager
-from pathlib import Path
 from datetime import datetime
-import orjson
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from config.settings import settings
-from agents.python import paper_broker, portfolio_tracker
+from agents.python import paper_broker
 from agents.python.data_collector import fetch_quote
+from config.settings import settings
 
 
 class PipelineRunner:
@@ -42,8 +42,9 @@ class PipelineRunner:
         self.log("cycle_started", {"dry_run": dry_run})
 
         try:
-            from core.orchestrator import build_graph
             import uuid
+
+            from core.orchestrator import build_graph
 
             cycle_id = str(uuid.uuid4())[:8]
             initial_state = {
@@ -69,7 +70,7 @@ class PipelineRunner:
             final_state = None
             async for event in app.astream(initial_state):
                 for node_name, node_state in event.items():
-                    self.log(f"node_completed", {"node": node_name})
+                    self.log("node_completed", {"node": node_name})
                     final_state = node_state
 
             self.last_result = final_state
@@ -196,11 +197,21 @@ async def status():
     }
 
 
+_background_tasks: set[asyncio.Task] = set()
+
+
+def _spawn(coro) -> asyncio.Task:
+    task = asyncio.create_task(coro)
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
+    return task
+
+
 @app.post("/api/run")
 async def run(dry_run: bool = False):
     if runner.running:
         return JSONResponse({"error": "already running"}, status_code=409)
-    asyncio.create_task(runner.run_once(dry_run=dry_run))
+    _spawn(runner.run_once(dry_run=dry_run))
     return {"started": True}
 
 
@@ -210,7 +221,7 @@ async def auto_start(interval: int = 3600):
         return {"status": "already_running"}
     runner.auto_mode = True
     runner.interval_sec = interval
-    asyncio.create_task(runner.auto_loop())
+    _spawn(runner.auto_loop())
     return {"status": "started", "interval": interval}
 
 
@@ -259,7 +270,7 @@ async def market_snapshot():
 
     quotes = {}
     results = await asyncio.gather(*[asyncio.to_thread(_yf_quote, sym) for sym in settings.symbols])
-    for sym, q in zip(settings.symbols, results):
+    for sym, q in zip(settings.symbols, results, strict=False):
         quotes[sym] = q
     return quotes
 

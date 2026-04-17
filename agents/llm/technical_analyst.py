@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import asyncio
+
 from core import llm_client
 from core.state import Analysis, PipelineState
 
@@ -30,31 +33,40 @@ def _build_prompt(symbol: str, state: PipelineState) -> str:
     return "\n".join(lines)
 
 
+def _parse_response(response: str) -> tuple[str, float]:
+    signal = "neutral"
+    for s in ["bullish", "bearish", "neutral"]:
+        if s in response.lower():
+            signal = s
+            break
+
+    confidence = 0.5
+    markers = {"high confidence": 0.85, "strong": 0.8, "moderate": 0.6, "weak": 0.4, "low confidence": 0.3}
+    for marker, val in markers.items():
+        if marker in response.lower():
+            confidence = val
+            break
+    return signal, confidence
+
+
+async def _analyze_one(symbol: str, state: PipelineState) -> Analysis | None:
+    if symbol not in state.market_data:
+        return None
+    prompt = _build_prompt(symbol, state)
+    response = await llm_client.query(prompt, system=SYSTEM)
+    signal, confidence = _parse_response(response)
+    return Analysis(
+        agent="technical_analyst",
+        symbol=symbol,
+        signal=signal,
+        confidence=confidence,
+        reasoning=response[:500],
+    )
+
+
 async def analyze(state: PipelineState) -> PipelineState:
-    for symbol in state.symbols:
-        if symbol not in state.market_data:
-            continue
-        prompt = _build_prompt(symbol, state)
-        response = await llm_client.query(prompt, system=SYSTEM)
-
-        signal = "neutral"
-        confidence = 0.5
-        for s in ["bullish", "bearish", "neutral"]:
-            if s in response.lower():
-                signal = s
-                break
-
-        conf_markers = {"high confidence": 0.85, "strong": 0.8, "moderate": 0.6, "weak": 0.4, "low confidence": 0.3}
-        for marker, val in conf_markers.items():
-            if marker in response.lower():
-                confidence = val
-                break
-
-        state.analyses.setdefault(symbol, []).append(Analysis(
-            agent="technical_analyst",
-            symbol=symbol,
-            signal=signal,
-            confidence=confidence,
-            reasoning=response[:500],
-        ))
+    results = await asyncio.gather(*[_analyze_one(s, state) for s in state.symbols])
+    for symbol, analysis in zip(state.symbols, results, strict=False):
+        if analysis:
+            state.analyses.setdefault(symbol, []).append(analysis)
     return state

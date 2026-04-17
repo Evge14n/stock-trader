@@ -1,7 +1,10 @@
 from __future__ import annotations
-from core import llm_client
-from core.state import TradeSignal, PipelineState
+
+import asyncio
+
 from config.settings import settings
+from core import llm_client
+from core.state import PipelineState, TradeSignal
 
 SYSTEM = """You are a disciplined swing trader. Based on the research synthesis, decide whether to trade.
 If you decide to trade, output:
@@ -36,8 +39,8 @@ def _build_prompt(symbol: str, state: PipelineState) -> str:
 
     indicators = state.indicators.get(symbol, [])
     atr = next((i for i in indicators if i.name == "ATR"), None)
-    if atr:
-        lines.append(f"\nATR: {atr.value} ({round(atr.value / md.price * 100, 2)}% of price)" if md else "")
+    if atr and md:
+        lines.append(f"\nATR: {atr.value} ({round(atr.value / md.price * 100, 2)}% of price)")
 
     lines.append(f"\nMax position size: ${settings.max_position_size}")
     lines.append(f"Risk per trade: {settings.risk_per_trade * 100}%")
@@ -55,60 +58,65 @@ def _calc_quantity(price: float, stop_pct: float) -> int:
     return min(qty, max_shares)
 
 
+async def _decide_one(symbol: str, state: PipelineState) -> TradeSignal | None:
+    analyses = state.analyses.get(symbol, [])
+    researcher = None
+    for a in reversed(analyses):
+        if a.agent == "researcher":
+            researcher = a
+            break
+
+    if not researcher or researcher.confidence < 0.55:
+        return None
+
+    if researcher.signal == "hold":
+        return None
+
+    prompt = _build_prompt(symbol, state)
+    response = await llm_client.query(prompt, system=SYSTEM, temperature=0.1)
+    resp_lower = response.lower()
+
+    if "pass" in resp_lower and "buy" not in resp_lower and "sell" not in resp_lower:
+        return None
+
+    action = "buy" if "buy" in resp_lower else "sell" if "sell" in resp_lower else None
+    if not action:
+        return None
+
+    md = state.market_data.get(symbol)
+    if not md or md.price <= 0:
+        return None
+
+    stop_pct = 0.03
+    tp_pct = 0.06
+    for pct in [0.02, 0.03, 0.04, 0.05]:
+        if str(pct) in response:
+            stop_pct = pct
+            tp_pct = pct * 2
+            break
+
+    qty = _calc_quantity(md.price, stop_pct)
+    if qty <= 0:
+        return None
+
+    sl = round(md.price * (1 - stop_pct), 2) if action == "buy" else round(md.price * (1 + stop_pct), 2)
+    tp = round(md.price * (1 + tp_pct), 2) if action == "buy" else round(md.price * (1 - tp_pct), 2)
+
+    return TradeSignal(
+        symbol=symbol,
+        action=action,
+        quantity=qty,
+        entry_price=md.price,
+        stop_loss=sl,
+        take_profit=tp,
+        confidence=researcher.confidence,
+        reasoning=response[:300],
+    )
+
+
 async def decide(state: PipelineState) -> PipelineState:
-    for symbol in state.symbols:
-        analyses = state.analyses.get(symbol, [])
-        researcher = None
-        for a in reversed(analyses):
-            if a.agent == "researcher":
-                researcher = a
-                break
-
-        if not researcher or researcher.confidence < 0.55:
-            continue
-
-        if researcher.signal in ("hold",):
-            continue
-
-        prompt = _build_prompt(symbol, state)
-        response = await llm_client.query(prompt, system=SYSTEM, temperature=0.1)
-        resp_lower = response.lower()
-
-        if "pass" in resp_lower and "buy" not in resp_lower and "sell" not in resp_lower:
-            continue
-
-        action = "buy" if "buy" in resp_lower else "sell" if "sell" in resp_lower else None
-        if not action:
-            continue
-
-        md = state.market_data.get(symbol)
-        if not md or md.price <= 0:
-            continue
-
-        stop_pct = 0.03
-        tp_pct = 0.06
-        for pct in [0.02, 0.03, 0.04, 0.05]:
-            tag = str(pct)
-            if tag in response:
-                stop_pct = pct
-                tp_pct = pct * 2
-                break
-
-        qty = _calc_quantity(md.price, stop_pct)
-        if qty <= 0:
-            continue
-
-        sl = round(md.price * (1 - stop_pct), 2) if action == "buy" else round(md.price * (1 + stop_pct), 2)
-        tp = round(md.price * (1 + tp_pct), 2) if action == "buy" else round(md.price * (1 - tp_pct), 2)
-
-        state.signals.append(TradeSignal(
-            symbol=symbol,
-            action=action,
-            quantity=qty,
-            entry_price=md.price,
-            stop_loss=sl,
-            take_profit=tp,
-            confidence=researcher.confidence,
-            reasoning=response[:300],
-        ))
+    results = await asyncio.gather(*[_decide_one(s, state) for s in state.symbols])
+    for signal in results:
+        if signal:
+            state.signals.append(signal)
     return state

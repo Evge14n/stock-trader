@@ -1,6 +1,7 @@
 from __future__ import annotations
-from core.state import RiskCheck, TradeSignal, PipelineState
+
 from config.settings import settings
+from core.state import PipelineState, RiskCheck, TradeSignal
 
 
 def _check_position_size(signal: TradeSignal) -> tuple[bool, str]:

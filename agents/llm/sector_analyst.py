@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import asyncio
+
 from core import llm_client
 from core.state import Analysis, PipelineState
 
@@ -56,30 +59,36 @@ def _build_prompt(symbol: str, sector: str, state: PipelineState) -> str:
     return "\n".join(lines)
 
 
+async def _analyze_one(symbol: str, state: PipelineState) -> Analysis | None:
+    if symbol not in state.market_data:
+        return None
+
+    sector = _find_sector(symbol)
+    prompt = _build_prompt(symbol, sector, state)
+    response = await llm_client.query(prompt, system=SYSTEM)
+
+    signal = "neutral"
+    for s in ["bullish", "bearish", "neutral"]:
+        if s in response.lower():
+            signal = s
+            break
+
+    confidence = 0.5
+    if sector == "unknown":
+        confidence = 0.35
+
+    return Analysis(
+        agent=f"sector_{sector}",
+        symbol=symbol,
+        signal=signal,
+        confidence=confidence,
+        reasoning=response[:500],
+    )
+
+
 async def analyze(state: PipelineState) -> PipelineState:
-    for symbol in state.symbols:
-        if symbol not in state.market_data:
-            continue
-
-        sector = _find_sector(symbol)
-        prompt = _build_prompt(symbol, sector, state)
-        response = await llm_client.query(prompt, system=SYSTEM)
-
-        signal = "neutral"
-        for s in ["bullish", "bearish", "neutral"]:
-            if s in response.lower():
-                signal = s
-                break
-
-        confidence = 0.5
-        if sector == "unknown":
-            confidence = 0.35
-
-        state.analyses.setdefault(symbol, []).append(Analysis(
-            agent=f"sector_{sector}",
-            symbol=symbol,
-            signal=signal,
-            confidence=confidence,
-            reasoning=response[:500],
-        ))
+    results = await asyncio.gather(*[_analyze_one(s, state) for s in state.symbols])
+    for symbol, analysis in zip(state.symbols, results, strict=False):
+        if analysis:
+            state.analyses.setdefault(symbol, []).append(analysis)
     return state

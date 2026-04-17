@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import asyncio
+
 from core import llm_client
 from core.state import Analysis, PipelineState
 
@@ -55,38 +58,44 @@ def _build_prompt(symbol: str, metrics: dict, price: float) -> str:
     )
 
 
+async def _analyze_one(symbol: str, state: PipelineState) -> Analysis | None:
+    md = state.market_data.get(symbol)
+    if not md:
+        return None
+
+    metrics = _momentum_metrics(md)
+    prompt = _build_prompt(symbol, metrics, md.price)
+    response = await llm_client.query(prompt, system=SYSTEM)
+
+    signal = "neutral"
+    for s in ["bullish", "bearish", "neutral"]:
+        if s in response.lower():
+            signal = s
+            break
+
+    confidence = 0.5
+    if metrics:
+        change_20d = metrics.get("change_20d", 0)
+        up_days = metrics.get("up_days_10d", 5)
+        if change_20d > 5 and up_days >= 7:
+            confidence = 0.8
+        elif change_20d < -5 and up_days <= 3:
+            confidence = 0.75
+        elif abs(change_20d) < 2:
+            confidence = 0.4
+
+    return Analysis(
+        agent="momentum_analyst",
+        symbol=symbol,
+        signal=signal,
+        confidence=round(confidence, 3),
+        reasoning=response[:500],
+    )
+
+
 async def analyze(state: PipelineState) -> PipelineState:
-    for symbol in state.symbols:
-        md = state.market_data.get(symbol)
-        if not md:
-            continue
-
-        metrics = _momentum_metrics(md)
-        prompt = _build_prompt(symbol, metrics, md.price)
-        response = await llm_client.query(prompt, system=SYSTEM)
-
-        signal = "neutral"
-        for s in ["bullish", "bearish", "neutral"]:
-            if s in response.lower():
-                signal = s
-                break
-
-        confidence = 0.5
-        if metrics:
-            change_20d = metrics.get("change_20d", 0)
-            up_days = metrics.get("up_days_10d", 5)
-            if change_20d > 5 and up_days >= 7:
-                confidence = 0.8
-            elif change_20d < -5 and up_days <= 3:
-                confidence = 0.75
-            elif abs(change_20d) < 2:
-                confidence = 0.4
-
-        state.analyses.setdefault(symbol, []).append(Analysis(
-            agent="momentum_analyst",
-            symbol=symbol,
-            signal=signal,
-            confidence=round(confidence, 3),
-            reasoning=response[:500],
-        ))
+    results = await asyncio.gather(*[_analyze_one(s, state) for s in state.symbols])
+    for symbol, analysis in zip(state.symbols, results, strict=False):
+        if analysis:
+            state.analyses.setdefault(symbol, []).append(analysis)
     return state

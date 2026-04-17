@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+
 from config.settings import settings
 
 INITIAL_CASH = 100_000.0

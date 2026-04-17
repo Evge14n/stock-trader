@@ -1,6 +1,8 @@
 from __future__ import annotations
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+
 from core.state import Indicator, PipelineState
 
 
@@ -24,9 +26,21 @@ def calc_rsi(closes: pd.Series, period: int = 14) -> float:
     delta = closes.diff()
     gain = delta.where(delta > 0, 0.0).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0.0)).rolling(window=period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + rs))
-    return round(float(rsi.iloc[-1]), 2) if not rsi.empty and not pd.isna(rsi.iloc[-1]) else 50.0
+
+    last_gain = gain.iloc[-1] if not gain.empty else 0.0
+    last_loss = loss.iloc[-1] if not loss.empty else 0.0
+
+    if pd.isna(last_gain) or pd.isna(last_loss):
+        return 50.0
+    if last_loss == 0 and last_gain == 0:
+        return 50.0
+    if last_loss == 0:
+        return 100.0
+    if last_gain == 0:
+        return 0.0
+
+    rs = last_gain / last_loss
+    return round(100 - (100 / (1 + rs)), 2)
 
 
 def calc_macd(closes: pd.Series) -> dict:
