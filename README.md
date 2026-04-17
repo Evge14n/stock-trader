@@ -115,7 +115,22 @@ python main.py status          # поточний стан портфеля
 python main.py backtest        # історичне тестування
 python main.py dashboard       # запустити web-панель
 python main.py reset           # скинути портфель до $100k
+python main.py rl-train --timesteps 100000 --period 2y   # навчити PPO агента
+python main.py rl-eval --period 6mo                      # оцінити навчену модель
 ```
+
+### Reinforcement Learning (PPO)
+
+Опціональний RL-агент, який замінює LLM `trade_decision` ноду. Навчається на історичних OHLCV, вирішує buy/hold/sell з 13-вимірного вектора ознак (RSI, MACD, BB, ATR, Stoch, ADX, returns, position state).
+
+```bash
+pip install -r requirements-rl.txt          # torch CPU + stable-baselines3 + gymnasium
+python main.py rl-train --timesteps 200000  # ~10 хв на CPU
+export USE_RL_DECISION=true                 # увімкнути RL в пайплайні (або .env)
+python main.py run --dry-run
+```
+
+Модель зберігається в `data/rl/ppo_latest.zip`. Без навченої моделі прапорець просто додає попередження в `state.errors` і пропускає сигнали.
 
 ### Web Dashboard
 
